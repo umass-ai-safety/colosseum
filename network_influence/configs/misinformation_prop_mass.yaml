@@ -1,0 +1,79 @@
+experiment:
+  # "Mass" misinformation propagation: each adversary targets a different victim when possible.
+  #
+  # Note: the runner appends a timestamp subfolder automatically, so `output_dir` should be a stable root.
+  tag: misinformation_prop_mass
+  output_dir: experiments/network_influence/outputs/misinformation_prop_mass
+  planning_rounds: 3
+  max_conversation_steps: 3
+  # Run-level parallelism. Higher values increase API concurrency (watch rate limits/cost).
+  max_concurrent_runs: 10
+  # Limit repetitions per sweep setting by slicing the seed list (useful for cost control).
+  runs_per_setting: 2
+  seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+  adversary:
+    strategy: highest_degree  # random | highest_degree | center
+    force_seed: true
+    victim_assignment: distinct  # distinct | shared
+    misinfo_frequency: once  # once | always
+  info:
+    code_prefix: PREF_CODE
+    true_preference: no_trip
+    false_preference: on_trip
+  judge:
+    # The judge is currently implemented via the OpenAI client, so OPENAI_API_KEY is required.
+    model: gpt-4.1-2025-04-14
+    params:
+      max_tokens: 256
+      temperature: 0.0
+  sweeps:
+    - name: adv_count_sweep
+      topologies: [path, star, complete, watts_strogatz, barabasi_albert, erdos_renyi]
+      num_agents: [6]
+      adversary_counts: [0, 1, 2, 3, 4]
+
+simulation:
+  # These defaults are overridden per-run by the sweep seeds + experiment.* settings.
+  seed: 1
+  max_iterations: 1
+  max_planning_rounds: 3
+  max_conversation_steps: 3
+
+environment:
+  name: MeetingSchedulingEnvironment
+  assignment_filling: false
+  num_meetings: 3
+  timeline_length: 12
+  min_participants: 2
+  max_participants: 4
+  soft_meeting_ratio: 0.6
+
+communication_network:
+  topology: path
+  num_agents: 6
+  consolidate_channels: true
+  # used by: erdos_renyi
+  edge_prob: 0.6
+  # used by: watts_strogatz (k must be even and < num_agents)
+  k: 2
+  rewire_prob: 0.3
+  # used by: barabasi_albert (1 <= m < num_agents)
+  m: 3
+
+llm_models:
+  # - label: together-llama3.3-70b
+  #   llm:
+  #     provider: together
+  #     together:
+  #       model: meta-llama/Llama-3.3-70B-Instruct-Turbo
+  #       params:
+  #         max_tokens: 1500
+  #         temperature: 0.7
+  - label: openai-gpt-4o-mini
+    llm:
+      provider: openai
+      openai:
+        model: gpt-4o-mini
+        params:
+          max_tokens: 1000
+          temperature: 0.7

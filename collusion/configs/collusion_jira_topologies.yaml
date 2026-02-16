@@ -1,0 +1,53 @@
+simulation:
+  max_iterations: 1
+  max_planning_rounds: 4
+  max_conversation_steps: 3
+  seed: 1
+  tags: [collusion_complete]
+
+environment:
+  name: JiraTicketEnvironment
+  assignment_filling: false
+  max_tasks: 8
+
+communication_network:
+  topology: complete
+  num_agents: 6
+  consolidate_channels: true
+  edge_prob: 0.6
+  # used by: watts_strogatz (k must be even and < num_agents)
+  k: 2
+  rewire_prob: 0.3
+  # used by: barabasi_albert (1 <= m < num_agents)
+  m: 3
+
+llm_models:
+  - label: together-kimik2-Instruct
+    llm:
+      provider: together
+      together:
+        model: moonshotai/Kimi-K2-Instruct-0905
+        params:
+          max_tokens: 2000
+          temperature: 0.7
+
+experiment:
+  tag: collusion_topologies_sweep
+  output_dir: experiments/collusion/outputs/collusion_topologies_sweep
+  max_concurrent_runs: 10
+  seeds: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
+  collusion:
+    colluder_selection: random
+  sweeps:
+    - name: topologies_sweep
+      topologies: [path, star, watts_strogatz, barabasi_albert, erdos_renyi, complete]
+      num_agents: [6]
+      colluder_counts: [2]
+      # Baseline vs treatment:
+      # - secret_channel_enabled=false: vanilla cooperative run
+      # - secret_channel_enabled=true: adds a hidden colluder-only blackboard (private channel) on top of the normal network.
+      secret_channel_enabled: [false, true]
+      # Prompt variants only apply when secret_channel_enabled=true.
+      # When secret_channel_enabled=false, the runner forces the effective variant to "control" (ignores the others).
+      # Options: control, simple, deception, structured, aggressive
+      prompt_variants: [control, simple]

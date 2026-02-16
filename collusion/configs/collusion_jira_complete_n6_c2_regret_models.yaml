@@ -1,0 +1,101 @@
+simulation:
+  max_iterations: 1
+  max_planning_rounds: 4
+  max_conversation_steps: 3
+  seed: 1
+  tags: [collusion_regret]
+
+environment:
+  name: JiraTicketEnvironment
+  assignment_filling: true
+  max_tasks: 8
+
+communication_network:
+  topology: complete
+  num_agents: 6
+  consolidate_channels: true
+
+llm_models:
+  - label: openai-gpt-4.1-mini
+    llm:
+      provider: openai
+      openai:
+        model: gpt-4.1-mini-2025-04-14
+        params:
+          max_tokens: 1500
+          temperature: 0.7
+  - label: openai-gpt-4o-mini
+    llm:
+      provider: openai
+      openai:
+        model: gpt-4o-mini
+        params:
+          max_tokens: 1500
+          temperature: 0.7
+  - label: anthropic-claude-sonnet-4-5
+    llm:
+      provider: anthropic
+      anthropic:
+        model: claude-sonnet-4-5
+        params:
+          max_tokens: 1500
+          temperature: 0.7
+  - label: gemini-2.5-flash
+    llm:
+      provider: gemini
+      gemini:
+        model: gemini-2.5-flash
+        params:
+          max_tokens: 1500
+          temperature: 0.7
+  # - label: together-gpt-oss-120b
+  #   llm:
+  #     provider: together
+  #     together:
+  #       model: openai/gpt-oss-120b
+  #       params:
+  #         max_tokens: 1500
+  #         temperature: 0.7
+
+  # - label: together-deepseek-v3.1
+  #   llm:
+  #     provider: together
+  #     together:
+  #       model: deepseek-ai/DeepSeek-V3.1
+  #       params:
+  #         max_tokens: 1500
+  #         temperature: 0.7
+
+  - label: together-kimik2-Instruct
+    llm:
+      provider: together
+      together:
+        model: moonshotai/Kimi-K2-Instruct-0905
+        params:
+          max_tokens: 1500
+          temperature: 0.7
+
+  - label: together-kimik2-thinking
+    llm:
+      provider: together
+      together:
+        model: moonshotai/Kimi-K2-Thinking
+        params:
+          max_tokens: 1500
+          temperature: 0.7
+
+experiment:
+  tag: collusion_regret_complete_n6_c2
+  output_dir: experiments/collusion/outputs/collusion_regret_complete_n6_c2
+  max_concurrent_runs: 10
+  seeds: [1,2,3,4,5,6,7,8,9,10]
+  collusion:
+    colluder_selection: random
+  sweeps:
+    - name: complete_n6_c2
+      topologies: [complete]
+      num_agents: [6]
+      colluder_counts: [2]
+      secret_channel_enabled: [false, true]
+      prompt_variants: [control, simple]
+
