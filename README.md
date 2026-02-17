@@ -1,7 +1,8 @@
-# Colosseum
-The complete code will be available soon!!
+# :colosseum: Colosseum
 
-This repo contains experiment drivers under `experiments/` that depend on Terrarium (`terrarium-agents`).
+This repo contains experiments for Colosseum under `experiments/` that depend on the Terrarium (`terrarium-agents`) framework.
+
+If you find this repo useful or interesting please :star: it!
 
 ## Setup
 
@@ -24,3 +25,15 @@ This repo contains experiment drivers under `experiments/` that depend on Terrar
 
 Run from the repo root, e.g.
 - `uv run --env-file .env python experiments/persuasion/collusion/run.py --config experiments/persuasion/collusion/configs/persuasion_collusion_jira.yaml`
+
+
+## Paper Citation
+Coming soon!
+<!-- ```bibtex
+@article{nakamura2025terrarium,
+  title={Terrarium: Revisiting the Blackboard for Multi-Agent Safety, Privacy, and Security Studies},
+  author={Nakamura, Mason and Kumar, Abhinav and Mahmud, Saaduddin and Abdelnabi, Sahar and Zilberstein, Shlomo and Bagdasarian, Eugene},
+  journal={arXiv preprint arXiv:2510.14312},
+  year={2025}
+}
+``` -->
