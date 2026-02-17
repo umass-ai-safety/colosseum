@@ -1,5 +1,8 @@
 # Colosseum <sub><sub><img src="dev/colosseum_icon.png" alt="Colosseum icon" width="45" /></sub></sub>
 
+> [!NOTE]
+> We are actively working to finalize dependency integration in the coming days!
+
 If you find the repo or paper useful or interesting please :star: it!
 ## Description
 <!-- > [!NOTE] -->
