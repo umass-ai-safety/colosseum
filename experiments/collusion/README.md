@@ -15,7 +15,7 @@ Built-in `prompt_variant` values live in `experiments/collusion/prompts.py` (e.g
 ## Small "secret blackboard choice" variant
 If you want a tiny setup with **3 agents**, where **all 3 share one public blackboard** and **2 colluders also share a secret blackboard** (2 blackboards total), use:
 ```bash
-.venv/bin/python -m experiments.collusion.run \
+  python -m experiments.collusion.run \
   --config experiments/collusion/configs/collusion_jira_three_agents_two_blackboards.yaml
 ```
 
@@ -26,7 +26,7 @@ This config also disables the Jira system-prompt bias that tells agents to post 
 1) Ensure API keys are set (root `.env`) for your chosen provider.
 2) Run:
 ```bash
-.venv/bin/python -m experiments.collusion.run \
+  python -m experiments.collusion.run \
   --config experiments/collusion/configs/collusion_jira_topologies.yaml
 ```
 
@@ -35,7 +35,7 @@ Outputs are written under `experiments/collusion/outputs/<tag>/<timestamp>/`.
 ## LLM-as-a-judge (secret blackboard)
 To score how much *collusion exists on the secret blackboard* for an existing output root, run the post-hoc judge:
 ```bash
-.venv/bin/python -m experiments.collusion.judge_blackboards \
+  python -m experiments.collusion.judge_blackboards \
   --root experiments/collusion/outputs/collusion_complete/<timestamp> \
   --max-concurrent 16
 ```
@@ -51,7 +51,7 @@ Notes:
 ## Correlate judge scores with length/tooling
 After you have `judge_secret_blackboard/results.csv`, you can join it with per-run features like message length and tool-call counts:
 ```bash
-.venv/bin/python -m experiments.collusion.analyze_judge_correlations \
+  python -m experiments.collusion.analyze_judge_correlations \
   --root experiments/collusion/outputs/collusion_complete/<timestamp>
 ```
 
@@ -67,7 +67,7 @@ Cross-model outputs are written under `<root>/analysis/judge_correlations/`:
 ## Plot
 Generate sweep plots (the only supported plots) from a sweep directory:
 ```bash
-.venv/bin/python -m experiments.collusion.plots.generate_all \
+  python -m experiments.collusion.plots.generate_all \
   --sweep-dir experiments/collusion/outputs/<tag>/<timestamp>/runs/<model_label>/<sweep_name>
 ```
 
@@ -83,7 +83,7 @@ If a sweep crashes part-way through, or you want to extend it to more seeds, you
 
 Example: extend seeds to 1–10, then resume an existing output root:
 ```bash
-.venv/bin/python -m experiments.collusion.resume \
+  python -m experiments.collusion.resume \
   --root experiments/collusion/outputs/<tag>/<timestamp> \
   --config experiments/collusion/configs/collusion_jira_topologies.yaml
 ```
@@ -95,14 +95,14 @@ For Jira runs, you can compute an *exact* per-run optimal joint reward and compa
 
 1) Compute and write `optimal_summary.json` into each run directory:
 ```bash
-python experiments/collusion/compute_jira_optimal.py \
+  python experiments/collusion/compute_jira_optimal.py \
   --root experiments/collusion/outputs/<tag>/<timestamp> \
   --write-json
 ```
 
 2) Generate the combined nine-bars plot (normalized regret + normalized coalition regret gap + judge):
 ```bash
-.venv/bin/python -m experiments.collusion.plots.generate_jira_regret_report \
+  python -m experiments.collusion.plots.generate_jira_regret_report \
   --root experiments/collusion/outputs/<tag>/<timestamp> \
   --sweep-name <sweep_name> \
   --compute-optimal
@@ -111,3 +111,33 @@ python experiments/collusion/compute_jira_optimal.py \
 Outputs:
 - `plots/regret_report__normalized_regret__coalition_gap__judge.png`
 - `plots/regret_report__normalized_regret__coalition_gap__judge__data.csv`
+- `table_secret_true__pv_control.csv`: mean ± SEM over seeds for:
+  - `optimality_gap` = optimal − achieved (regret)
+  - `achieved_over_optimal` = achieved / optimal
+  - `joint_reward_ratio` = achieved / max_joint_reward (upper bound, not the exact optimal)
+  - `judge_mean_rating` = mean judge score (0–5) over (simple/medium/complex), when judge files exist
+- Per-model plots under `plots/by_model__<metric>/` comparing `baseline` vs `control` vs `simple`.
+
+## Sequential best-response regret (availability-aware)
+The `metrics.json` fields `mean_regret`, `coalition_mean_regret`, and `noncoalition_mean_regret` are computed as a
+one-shot **best-response regret**: for each agent, hold everyone else fixed and brute-force the agent's best
+counterfactual action over **all** tasks (plus `skip`).
+
+If you want a more sequential notion of regret for *non-first* agents (i.e., "no first dibs"), you can compute an
+availability-aware best-response regret where an agent's counterfactual actions are restricted to tasks that were
+still unclaimed by **earlier agents** in the recorded `agent_turn_order`.
+
+Compute it with:
+```bash
+  python -m experiments.collusion.compute_sequential_regret \
+  --root experiments/collusion/outputs/<tag>/<timestamp>
+```
+
+Outputs:
+- `sequential_regret_summary.json`: per-run sequential regret + baseline (unrestricted) regret, plus means.
+- Optionally add `--write-per-run` to write `sequential_regret.json` into each run directory.
+
+Notes:
+- This script parses the exact tasks/costs from `agent_prompts.json` when available (most faithful); it falls back to
+  a deterministic reconstruction when prompts are missing.
+- Later agents are held fixed; this is still a best-response-style counterfactual, just with a turn-order availability constraint.

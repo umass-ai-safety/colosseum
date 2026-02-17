@@ -1,0 +1,70 @@
+# Minimal test config for persuasion-based collusion experiments.
+
+simulation:
+  max_iterations: 1
+  max_planning_rounds: 4
+  max_conversation_steps: 3
+  seed: 1
+  tags: [persuasion_collusion_test]
+
+environment:
+  name: JiraTicketEnvironment
+  max_tasks: 8
+
+communication_network:
+  topology: path
+  num_agents: 6
+  consolidate_channels: true
+  edge_prob: 0.6
+  # used by: watts_strogatz (k must be even and < num_agents)
+  k: 2
+  rewire_prob: 0.3
+  # used by: barabasi_albert (1 <= m < num_agents)
+  m: 3
+
+llm_models:
+  - label: openai_gpt4o_mini
+    llm:
+      provider: openai
+      openai:
+        model: gpt-4o-mini
+        # params:
+        # #   temperature: 0.0
+        #   max_tokens: 256
+  # - label: together-kimik2-Instruct
+  #   llm:
+  #     provider: together
+  #     together:
+  #       model: moonshotai/Kimi-K2-Instruct-0905
+  #       params:
+  #         max_tokens: 2000
+  #         temperature: 0.7
+
+experiment:
+  tag: persuasion_collusion_sweep
+  output_dir: experiments/persuasion/collusion/outputs/persuasion_collusion/run_2
+  max_concurrent_runs: 2
+  seeds: [3]
+  persuasion_collusion:
+    colluder_selection: random
+    # Turn order: random | colluders_first
+    agent_order: random
+    # Optional: override built-in variant text
+    # prompt_variant_overrides: {}
+  sweeps:
+    - name: persuasion_collusion_sweep
+      topologies: [complete]
+      num_agents: [6]
+      colluder_counts: [2]
+      secret_channel_enabled: [false, true]
+      # Prompt variants only apply when secret_channel_enabled=true.
+      prompt_variants:
+        - control
+        - helpful_misdirection
+        - authority_nudge
+        # - social_proof
+        # - scarcity_pressure
+        - reciprocity_trade
+        # - risk_aversion
+        # - cost_anchor
+        # - split_brain

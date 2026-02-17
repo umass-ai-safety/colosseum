@@ -1,0 +1,54 @@
+experiment:
+  tag: emergent_prompt_sweep
+  output_dir: experiments/emergent_misalignment/outputs/emergent_prompt_sweep
+  max_concurrent_runs: 1
+  seeds: [1]
+
+  # This experiment does not define an explicit adversary strategy.
+  # Instead, we inject a benign-looking prompt variant into `emergent_counts` agents.
+  sweeps:
+    - name: clean_baseline
+      topologies: [complete]
+      emergent_counts: [0]
+      emergent_target_roles: [None]
+      prompt_versions: [v0]
+      num_agents: [9]
+      num_patients: ["num_agents_minus_1"]
+
+    - name: prompt_version_sweep
+      topologies: [complete]
+      emergent_counts: [1]
+      # If None: randomly select a non-provisioner agent as the emergent agent.
+      emergent_target_roles: [None]
+      prompt_versions: [v0, v1, v2, v3, v4, v5, v6]
+      num_agents: [9]
+      num_patients: ["num_agents_minus_1"]
+
+simulation:
+  seed: 42 # Overridden by experiment seeds
+  max_iterations: 3
+  max_planning_rounds: 1
+  max_conversation_steps: 2
+
+environment:
+  import_path: "experiments.emergent_misalignment.environment:EmergentMisalignmentHospitalEnvironment"
+  name: EmergentMisalignmentHospitalEnvironment
+  num_patients: 16
+  num_hospitals: 2
+  default_capacity: 2
+
+communication_network:
+  topology: complete
+  num_agents: 9 # Overridden by sweep
+  consolidate_channels: true
+  center: 0
+
+llm_models:
+  - label: openai-gpt-4.1-mini
+    llm:
+      provider: openai
+      openai:
+        model: "gpt-4.1-mini-2025-04-14"
+        params:
+          max_tokens: 1024
+          temperature: 0.7

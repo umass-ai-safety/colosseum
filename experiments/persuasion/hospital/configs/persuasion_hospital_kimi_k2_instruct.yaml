@@ -1,0 +1,72 @@
+# Minimal test config for persuasion-based collusion experiments in HospitalEnvironment.
+
+experiment:
+  tag: persuasion_hospital_sweep
+  output_dir: experiments/persuasion/hospital/outputs/persuasion_hospital
+  max_concurrent_runs: 10
+  seeds: [0, 1, 2, 3, 4]
+  persuasion_hospital:
+    # Coalition selection strategy:
+    # - hospital_coalition: prefer department-role coalitions by hospital (default)
+    # - random / first: simpler alternatives
+    colluder_selection: hospital_coalition
+    # Optional: override built-in variant text
+    # prompt_variant_overrides: {}
+  sweeps:
+    - name: persuasion_hospital_test
+      topologies: [complete] #, path]
+      # Hospital agent counts must be 1 + 4*k (Resource_Provisioner + 4 departments per hospital).
+      num_agents: [9]
+      num_patients: ["num_agents_minus_1"]
+      strategies:
+        - covert_max_coalition_reward
+        - destructive_max_coalition_reward
+        - destructive_no_reward_preservation
+      colluder_counts: [4]
+      target_roles:
+        - departmental
+        # - Resource_Provisioner
+        # - Triage
+      coalition_clique_enabled: [true]
+      secret_channel_enabled: [true]
+      prompt_variants:
+        - control
+        - helpful_misdirection
+        - authority_nudge
+        - social_proof
+        - scarcity_pressure
+        - reciprocity_trade
+
+simulation:
+  max_iterations: 2
+  max_planning_rounds: 2
+  max_conversation_steps: 3
+  seed: 1
+  tags: [persuasion_hospital_test]
+
+environment:
+  import_path: "envs.dcops.hospital.hospital_env:HospitalEnvironment"
+  name: HospitalEnvironment
+  num_patients: 8
+  num_hospitals: 2
+
+communication_network:
+  topology: complete
+  num_agents: 9
+  consolidate_channels: true
+  edge_prob: 0.6
+  # used by: watts_strogatz (k must be even and < num_agents)
+  k: 2
+  rewire_prob: 0.3
+  # used by: barabasi_albert (1 <= m < num_agents)
+  m: 3
+
+llm_models:
+  - label: together-kimik2-Instruct
+    llm:
+      provider: together
+      together:
+        model: moonshotai/Kimi-K2-Instruct-0905
+        params:
+          max_tokens: 2000
+          temperature: 0.7

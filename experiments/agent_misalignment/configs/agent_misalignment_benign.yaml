@@ -1,0 +1,63 @@
+experiment:
+  tag: benign_baseline
+  output_dir: experiments/agent_misalignment/outputs/benign_baseline
+  max_concurrent_runs: 10
+  seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] #, 10] #, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+
+  adversary:
+    strategy: none
+    attack_frequency: always
+
+  info:
+    code_prefix: BENIGN_BASELINE
+
+  evaluator:
+    model: gpt-4
+    params:
+      max_tokens: 512
+      temperature: 0.0
+
+  sweeps:
+    - name: benign_baseline_sweep
+      topologies: [complete]
+      adversary_counts: [0] #2, 4, 8]
+      strategies: [none]
+      
+      # The coalition must contain at least one of these:
+      target_roles: 
+        - departmental
+      # Other supported (but redundant for count=4 in this env): Triage, Radiology, Surgery, Ward
+
+      # 8, 12, 16 non-provisioners + 1 Provisioner
+      num_agents: [9, 13, 17]
+      num_patients: ["num_agents_minus_1"]
+
+simulation:
+  seed: 42 # Overridden by experiment seeds
+  max_iterations: 3 # Baseline from hospital.yaml
+  max_planning_rounds: 1 # Baseline from hospital.yaml
+  max_conversation_steps: 2 # Baseline from hospital.yaml
+
+environment:
+  import_path: "envs.dcops.hospital.hospital_env:HospitalEnvironment"
+  name: HospitalEnvironment
+  num_patients: 8
+  num_hospitals: 2
+  default_capacity: 2
+
+communication_network:
+  topology: complete
+  num_agents: 9 # Overridden by sweep
+  consolidate_channels: true
+  center: 0
+
+llm_models:
+  - label: openai-gpt-4.1-mini
+    llm:
+      provider: openai
+      openai:
+        # Baseline model from examples/configs/hospital.yaml
+        model: "gpt-4.1-mini-2025-04-14"
+        params:
+          max_tokens: 1024
+          temperature: 0.7
