@@ -1,4 +1,4 @@
-# :colosseum: Colosseum
+# <sub><img src="dev/colosseum_icon.png" alt="Colosseum icon" width="45" /></sub> Colosseum
 
 This repo contains experiments for Colosseum under `experiments/` that depend on the Terrarium (`terrarium-agents`) framework.
 
