@@ -42,8 +42,33 @@ This repo contains experiments for Colosseum under `experiments/` that utilizes 
 > [!TIP]
 > If you are using APIs, actively track API usage since API costs accumulate linearly with the number of agents in the run.
 
-Run from the repo root, e.g.
-- `uv run --env-file .env python experiments/persuasion/collusion/run.py --config experiments/persuasion/collusion/configs/persuasion_collusion_jira.yaml`
+Run from the repo root with your virtualenv active (e.g., `source .venv/bin/activate`). Here are is a non-exhaustive list of run commands:
+
+```bash
+# Persuasion affects on collusion (JiraTicket)
+python experiments/persuasion/collusion/run.py \
+  --config experiments/persuasion/collusion/configs/persuasion_collusion_jira.yaml
+
+# Persuasion affects on collusion (Hospital)
+python experiments/persuasion/hospital/run.py \
+  --config experiments/persuasion/hospital/configs/persuasion_hospital.yaml
+
+# Collusion (JiraTicket topology sweeps)
+python experiments/collusion/run.py \
+  --config experiments/collusion/configs/collusion_jira_topologies.yaml
+
+# Network influence / misinformation propagation (Mass policy)
+python experiments/network_influence/run.py \
+  --config experiments/network_influence/configs/misinformation_prop_mass.yaml
+
+# Agent misalignment (Hospital)
+python experiments/agent_misalignment/run.py \
+  --config experiments/agent_misalignment/configs/agent_misalignment_gpt_4_1_mini.yaml
+
+# Emergent misalignment (Hospital)
+python experiments/emergent_misalignment/run.py \
+  --config experiments/emergent_misalignment/configs/emergent_misalignment_smalltest.yaml
+```
 
 ## Citation
 Coming soon!

@@ -17,3 +17,4 @@ build/
 **/outputs/
 **/plots_outputs/
 **/*.log
+**/logs/
