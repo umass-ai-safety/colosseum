@@ -1,8 +1,21 @@
-# Colosseum <sub><sub><img src="dev/colosseum_icon.png" alt="Colosseum icon" width="45" /></sub></sub> 
-
-This repo contains experiments for Colosseum under `experiments/` that depend on the Terrarium (`terrarium-agents`) framework.
+# Colosseum <sub><sub><img src="dev/colosseum_icon.png" alt="Colosseum icon" width="45" /></sub></sub>
 
 If you find the repo or paper useful or interesting please :star: it!
+## Description
+<!-- > [!NOTE] -->
+> Colosseum is a framework for objectively auditing cooperative multi-agent systems composed of tool-calling, LLM-based agents. We study collusion across varying models, network topologies, and environments. Below is a taxonomy of various collusion types Colosseum can identify:
+
+<!-- > [!FINDING] -->
+<!-- > [!TIP] -->
+
+<p align="center">
+  <a href="dev/colosseum-motivation-v3.pdf">
+    <img src="dev/colosseum-motivation-v3-preview.png" alt="Colosseum motivation slides" width="70%" />
+  </a>
+</p>
+
+This repo contains experiments for Colosseum under `experiments/` that utilizes the [Terrarium](https://github.com/umass-aisec/Terrarium) (`terrarium-agents`) framework.
+
 
 ## Setup
 
@@ -23,11 +36,13 @@ If you find the repo or paper useful or interesting please :star: it!
 
 ## Run
 
+> [!TIP]
+> If you are using APIs, actively track API usage since API costs accumulate linearly with the number of agents in the run.
+
 Run from the repo root, e.g.
 - `uv run --env-file .env python experiments/persuasion/collusion/run.py --config experiments/persuasion/collusion/configs/persuasion_collusion_jira.yaml`
 
-
-## Paper Citation
+## Citation
 Coming soon!
 <!-- ```bibtex
 @article{nakamura2025terrarium,
