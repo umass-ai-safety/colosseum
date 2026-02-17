@@ -58,13 +58,9 @@ python experiments/collusion/run.py \
 python experiments/network_influence/run.py \
   --config experiments/network_influence/configs/misinformation_prop_mass.yaml
 
-# Agent misalignment (Hospital)
+# Agent objective misalignment (Hospital)
 python experiments/agent_misalignment/run.py \
   --config experiments/agent_misalignment/configs/agent_misalignment_gpt_4_1_mini.yaml
-
-# Emergent misalignment (Hospital)
-python experiments/emergent_misalignment/run.py \
-  --config experiments/emergent_misalignment/configs/emergent_misalignment_smalltest.yaml
 ```
 
 ## Citation
