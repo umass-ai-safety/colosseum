@@ -3,9 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence
 
-from src.blackboard import Megaboard, format_blackboard_events_for_prompt
-from src.communication_protocols.base import BaseCommunicationProtocol
-from src.environment_tools import (
+from terrarium.blackboard import Megaboard, format_blackboard_events_for_prompt
+from terrarium.communication_protocols.base import BaseCommunicationProtocol
+from terrarium.environment_tools import (
     EnvironmentToolsNotFoundError,
     instantiate_environment_tools,
 )

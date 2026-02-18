@@ -7,7 +7,7 @@ This module is intentionally runnable both as:
 - a script: `python experiments/network_influence/run.py --config ...`
 
 High-level flow for each run:
-1) Build a communication graph (`src.networks.build_communication_network`).
+1) Build a communication graph (`terrarium.networks.build_communication_network`).
 2) Select adversaries and (optionally) victims based on the config.
 3) Run planning + execution phases through `LocalCommunicationProtocol`.
 4) Run a private survey phase per victim.
@@ -66,9 +66,9 @@ from experiments.network_influence.metrics import compute_run_metrics
 from experiments.network_influence.prompts import NetworkInfluencePrompts
 from experiments.common.local_protocol import LocalCommunicationProtocol
 from llm_server.clients.openai_client import OpenAIClient
-from src.networks import build_communication_network
-from src.logger import AgentTrajectoryLogger
-from src.utils import get_client_instance, get_generation_params, get_model_name
+from terrarium.networks import build_communication_network
+from terrarium.logger import AgentTrajectoryLogger
+from terrarium.utils import get_client_instance, get_generation_params, get_model_name
 
 
 LOGGER_NAME = "experiments.network_influence"

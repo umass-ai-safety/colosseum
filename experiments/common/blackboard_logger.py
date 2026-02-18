@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict
 
-from src.logger import BlackboardLogger
+from terrarium.logger import BlackboardLogger
 
 
 class ExperimentBlackboardLogger(BlackboardLogger):

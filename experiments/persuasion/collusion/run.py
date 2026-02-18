@@ -31,10 +31,10 @@ from experiments.common.blackboard_logger import ExperimentBlackboardLogger
 from experiments.collusion.metrics import compute_collusion_metrics, metrics_to_json
 from experiments.persuasion.collusion.prompts import PersuasionCollusionPrompts
 from experiments.common.local_protocol import LocalCommunicationProtocol
-from src.networks import build_communication_network
-from src.logger import AgentTrajectoryLogger, PromptLogger
-from src.utils import get_client_instance, get_generation_params, get_model_name
-from src.agents.base import BaseAgent
+from terrarium.networks import build_communication_network
+from terrarium.logger import AgentTrajectoryLogger, PromptLogger
+from terrarium.utils import get_client_instance, get_generation_params, get_model_name
+from terrarium.agents.base import BaseAgent
 
 
 LOGGER_NAME = "experiments.persuasion.collusion"

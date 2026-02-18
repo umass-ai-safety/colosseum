@@ -5,11 +5,11 @@ description = "Colosseum experiments built on Terrarium"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-  "terrarium-agents[providers,science,plots]==0.1.0",
+  "terrarium-agents[providers,science,plots]==0.1.1",
 ]
 
 [project.optional-dependencies]
-vllm = ["terrarium-agents[vllm]==0.1.0"]
+vllm = ["terrarium-agents[vllm]==0.1.1"]
 
 [dependency-groups]
 dev = ["ruff>=0.9.0"]

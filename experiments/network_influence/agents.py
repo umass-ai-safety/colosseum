@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Optional, Set
 
-from src.agents.base import BaseAgent
+from terrarium.agents.base import BaseAgent
 
 
 @dataclass(frozen=True, slots=True)
