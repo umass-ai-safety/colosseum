@@ -64,12 +64,15 @@ python experiments/agent_misalignment/run.py \
 ```
 
 ## Citation
-Coming soon!
-<!-- ```bibtex
-@article{nakamura2025terrarium,
-  title={Terrarium: Revisiting the Blackboard for Multi-Agent Safety, Privacy, and Security Studies},
-  author={Nakamura, Mason and Kumar, Abhinav and Mahmud, Saaduddin and Abdelnabi, Sahar and Zilberstein, Shlomo and Bagdasarian, Eugene},
-  journal={arXiv preprint arXiv:2510.14312},
-  year={2025}
+Please cite us using:
+```bibtex
+@article{nakamura2026colosseumauditingcollusioncooperative,
+      title={Colosseum: Auditing Collusion in Cooperative Multi-Agent Systems}, 
+      author={Mason Nakamura and Abhinav Kumar and Saswat Das and Sahar Abdelnabi and Saaduddin Mahmud and Ferdinando Fioretto and Shlomo Zilberstein and Eugene Bagdasarian},
+      year={2026},
+      eprint={2602.15198},
+      archivePrefix={arXiv},
+      primaryClass={cs.MA},
+      url={https://arxiv.org/abs/2602.15198}, 
 }
-``` -->
+```
