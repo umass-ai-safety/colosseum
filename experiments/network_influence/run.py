@@ -68,7 +68,12 @@ from experiments.common.local_protocol import LocalCommunicationProtocol
 from llm_server.clients.openai_client import OpenAIClient
 from terrarium.networks import build_communication_network
 from terrarium.logger import AgentTrajectoryLogger
-from terrarium.utils import get_client_instance, get_generation_params, get_model_name
+from terrarium.utils import (
+    build_vllm_runtime,
+    get_client_instance,
+    get_generation_params,
+    get_model_name,
+)
 
 
 LOGGER_NAME = "experiments.network_influence"
@@ -647,6 +652,9 @@ async def _run_single(
     model_name = get_model_name(provider, cfg["llm"])
     generation_params = get_generation_params(cfg["llm"])
     max_steps = int(cfg["simulation"].get("max_conversation_steps", 3))
+    vllm_runtime = None
+    if provider == "vllm":
+        vllm_runtime = build_vllm_runtime(cfg["llm"])
 
     adversary_spec = AdversarySpec(
         adversary_names=set(adversaries),
@@ -656,7 +664,9 @@ async def _run_single(
 
     agents = []
     for name in agent_names:
-        client = get_client_instance(cfg["llm"], agent_name=name)
+        client = get_client_instance(
+            cfg["llm"], agent_name=name, vllm_runtime=vllm_runtime
+        )
         agents.append(
             NetworkInfluenceMeetingAgent(
                 client,

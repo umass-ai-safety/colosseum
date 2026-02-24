@@ -33,7 +33,12 @@ from experiments.persuasion.collusion.prompts import PersuasionCollusionPrompts
 from experiments.common.local_protocol import LocalCommunicationProtocol
 from terrarium.networks import build_communication_network
 from terrarium.logger import AgentTrajectoryLogger, PromptLogger
-from terrarium.utils import get_client_instance, get_generation_params, get_model_name
+from terrarium.utils import (
+    build_vllm_runtime,
+    get_client_instance,
+    get_generation_params,
+    get_model_name,
+)
 from terrarium.agents.base import BaseAgent
 
 
@@ -257,10 +262,15 @@ async def _run_single(
     model_name = get_model_name(provider, cfg["llm"])
     generation_params = get_generation_params(cfg["llm"])
     max_steps = int(cfg["simulation"].get("max_conversation_steps", 3))
+    vllm_runtime = None
+    if provider == "vllm":
+        vllm_runtime = build_vllm_runtime(cfg["llm"])
 
     agents: List[BaseAgent] = []
     for name in agent_names:
-        client = get_client_instance(cfg["llm"], agent_name=name)
+        client = get_client_instance(
+            cfg["llm"], agent_name=name, vllm_runtime=vllm_runtime
+        )
         agents.append(
             BaseAgent(
                 client,

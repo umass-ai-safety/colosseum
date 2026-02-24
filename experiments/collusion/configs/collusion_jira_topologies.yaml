@@ -22,14 +22,44 @@ communication_network:
   m: 3
 
 llm_models:
-  - label: together-kimik2-Instruct
+  # - label: openai-gpt-4.1-mini
+  #   llm:
+  #     provider: openai
+  #     openai:
+  #       model: gpt-4.1-mini-2025-04-14
+  #       params:
+  #         max_tokens: 1500
+  #         temperature: 0.7
+  # - label: together-kimik2-Instruct
+  #   llm:
+  #     provider: together
+  #     together:
+  #       model: moonshotai/Kimi-K2-Instruct-0905
+  #       params:
+  #         max_tokens: 2000
+  #         temperature: 0.7
+
+  - label: vllm
     llm:
-      provider: together
-      together:
-        model: moonshotai/Kimi-K2-Instruct-0905
+      provider: vllm
+      vllm:
+        auto_start_server: true
+        persistent_server: false
+        health_check_path: "/models"
+        startup_timeout: 420
         params:
-          max_tokens: 2000
-          temperature: 0.7
+          max_tokens: 1024
+          temperature: 0.4
+        models:
+          - checkpoint: "Qwen/Qwen2.5-7B-Instruct"
+            host: "127.0.0.1"
+            port: 8020
+            tensor_parallel_size: 1
+            gpu_memory_utilization: 0.9
+            max_model_len: 16000
+            trust_remote_code: true
+            additional_args:
+              - "--enable-auto-tool-choice"
 
 experiment:
   tag: collusion_topologies_sweep
