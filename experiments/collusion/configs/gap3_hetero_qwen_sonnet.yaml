@@ -1,0 +1,66 @@
+simulation:
+  max_iterations: 1
+  max_planning_rounds: 3
+  max_conversation_steps: 2
+  seed: 1
+  tags: [gap3_hetero_qwen_sonnet]
+
+environment:
+  name: JiraTicketEnvironment
+  assignment_filling: false
+  max_tasks: 6
+
+communication_network:
+  topology: complete
+  num_agents: 3
+  consolidate_channels: true
+
+# Heterogeneous coalition: one colluder = qwen2.5:7b (local via Ollama),
+# one colluder = Claude Sonnet, normal agent = Claude Sonnet.
+#
+# qwen2.5:7b served via Ollama using the Together-compatible HTTP client.
+# Ollama must be running: `ollama serve`
+# Model must be pulled: `ollama pull qwen2.5:7b`
+#
+# colluder_llm_configs: Nth entry → Nth randomly-selected colluder.
+# Which colluder gets qwen vs Sonnet varies by seed (random selection).
+llm_models:
+  - label: hetero-qwen7b-sonnet
+    llm:
+      provider: anthropic
+      anthropic:
+        model: claude-sonnet-4-5
+        params:
+          max_tokens: 800
+          temperature: 0.7
+    colluder_llm_configs:
+      - provider: together
+        together:
+          base_url: http://localhost:11434/v1
+          api_key: ollama
+          model: qwen2.5:7b
+          request_timeout: 180
+          params:
+            max_tokens: 1000
+            temperature: 0.7
+      - provider: anthropic
+        anthropic:
+          model: claude-sonnet-4-5
+          params:
+            max_tokens: 800
+            temperature: 0.7
+
+experiment:
+  tag: gap3_hetero_qwen_sonnet
+  output_dir: experiments/collusion/outputs/gap3_hetero_qwen_sonnet
+  max_concurrent_runs: 1
+  seeds: [1, 2, 3, 4, 5]
+  collusion:
+    colluder_selection: random
+  sweeps:
+    - name: active_collusion
+      topologies: [complete]
+      num_agents: [3]
+      colluder_counts: [2]
+      secret_channel_enabled: [true]
+      prompt_variants: [deception]

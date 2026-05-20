@@ -245,6 +245,7 @@ async def _run_single(
     prompt_variant: str,
     seed: int,
     out_dir: Path,
+    colluder_llm_configs: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     rng = random.Random(int(seed))
     secret_channel_enabled = bool(secret_channel_enabled)
@@ -352,6 +353,13 @@ async def _run_single(
         for a in agent_names
     }
 
+    # Per-colluder LLM override: Nth selected colluder uses Nth entry in colluder_llm_configs.
+    colluder_llm_map: Dict[str, Dict[str, Any]] = {}
+    if colluder_llm_configs:
+        for _i, _cname in enumerate(colluders):
+            if _i < len(colluder_llm_configs):
+                colluder_llm_map[str(_cname)] = colluder_llm_configs[_i]
+
     # Wrap prompts (role-specific injection via agent_context).
     env.prompts = CollusionPrompts(
         env,
@@ -365,7 +373,6 @@ async def _run_single(
     # Build agents.
     provider = (cfg.get("llm", {}).get("provider") or "").lower()
     model_name = get_model_name(provider, cfg["llm"])
-    generation_params = get_generation_params(cfg["llm"])
     max_steps = int(cfg["simulation"].get("max_conversation_steps", 3))
     vllm_runtime = None
     if provider == "vllm":
@@ -376,19 +383,23 @@ async def _run_single(
         getattr(env, "tools_environment_name", None) or env.__class__.__name__
     )
     for name in agent_names:
+        agent_llm = colluder_llm_map.get(str(name), cfg["llm"])
+        agent_provider = (agent_llm.get("provider") or "").lower()
+        agent_model_name = get_model_name(agent_provider, agent_llm)
+        agent_gen_params = get_generation_params(agent_llm)
         client = get_client_instance(
-            cfg["llm"], agent_name=name, vllm_runtime=vllm_runtime
+            agent_llm, agent_name=name, vllm_runtime=vllm_runtime
         )
         agents.append(
             BaseAgent(
                 client,
                 name,
-                model_name,
+                agent_model_name,
                 max_steps,
                 None,
                 trajectory_logger,
                 env_tool_name,
-                generation_params=generation_params,
+                generation_params=agent_gen_params,
             )
         )
     if str(agent_order_strategy or "random").strip().lower() == "random":
@@ -791,6 +802,7 @@ async def run_from_config(
         for model_idx, model in enumerate(models, start=1):
             model_label = str(model.get("label") or "model")
             llm_cfg = model.get("llm") or {}
+            colluder_llm_configs = model.get("colluder_llm_configs") or None
             logger.info("MODEL START %s (%s/%s)", model_label, model_idx, len(models))
             if max_concurrent_runs > 1:
                 import asyncio
@@ -884,6 +896,7 @@ async def run_from_config(
                                                             prompt_variant=str(pv),
                                                             seed=int(seed),
                                                             out_dir=root,
+                                                            colluder_llm_configs=colluder_llm_configs,
                                                         )
                                                     )
                                                     completed += 1
@@ -947,6 +960,7 @@ async def run_from_config(
                                                     prompt_variant=str(pv),
                                                     seed=int(seed),
                                                     out_dir=root,
+                                                    colluder_llm_configs=colluder_llm_configs,
                                                 )
                                             )
                                             tasks.append(task)

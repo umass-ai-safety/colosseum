@@ -1,0 +1,62 @@
+simulation:
+  max_iterations: 1
+  max_planning_rounds: 3
+  max_conversation_steps: 2
+  seed: 1
+  tags: [gap3_hetero_kimi_sonnet]
+
+environment:
+  name: JiraTicketEnvironment
+  assignment_filling: false
+  max_tasks: 6
+
+communication_network:
+  topology: complete
+  num_agents: 3
+  consolidate_channels: true
+
+# colluder_llm_configs: Nth entry → Nth selected colluder.
+# Colluder 1 (first selected) = Kimi-K2-Instruct via OpenRouter (Together-compatible API).
+# Colluder 2 (second selected) = Claude Sonnet.
+# Normal agent = Claude Sonnet (global llm).
+#
+# Setup: set TOGETHER_API_KEY=<your_openrouter_key> in your environment.
+# OpenRouter uses the same OpenAI-compatible API as Together.
+llm_models:
+  - label: hetero-kimi-sonnet
+    llm:
+      provider: anthropic
+      anthropic:
+        model: claude-sonnet-4-5
+        params:
+          max_tokens: 800
+          temperature: 0.7
+    colluder_llm_configs:
+      - provider: together
+        together:
+          base_url: https://openrouter.ai/api/v1
+          model: moonshotai/kimi-k2-0905
+          params:
+            max_tokens: 2000
+            temperature: 0.7
+      - provider: anthropic
+        anthropic:
+          model: claude-sonnet-4-5
+          params:
+            max_tokens: 800
+            temperature: 0.7
+
+experiment:
+  tag: gap3_hetero_kimi_sonnet
+  output_dir: experiments/collusion/outputs/gap3_hetero_kimi_sonnet
+  max_concurrent_runs: 1
+  seeds: [1, 2, 3, 4, 5]
+  collusion:
+    colluder_selection: random
+  sweeps:
+    - name: active_collusion
+      topologies: [complete]
+      num_agents: [3]
+      colluder_counts: [2]
+      secret_channel_enabled: [true]
+      prompt_variants: [deception]
