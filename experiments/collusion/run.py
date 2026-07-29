@@ -45,6 +45,13 @@ from experiments.common.run_utils import (
 from experiments.common.blackboard_logger import ExperimentBlackboardLogger
 from experiments.collusion.metrics import compute_collusion_metrics, metrics_to_json
 from experiments.collusion.prompts import CollusionPrompts
+from experiments.private_channel_audit.monitor import (
+    AuditSettings,
+    PrivateChannelAuditor,
+    append_audit_event,
+    format_public_audit_report,
+)
+from experiments.private_channel_audit.foundry_client import FoundryOpenAIClient
 from experiments.common.local_protocol import LocalCommunicationProtocol
 from terrarium.networks import build_communication_network
 from terrarium.logger import AgentTrajectoryLogger, PromptLogger
@@ -230,6 +237,239 @@ def _log_blackboards_txt(
         )
 
 
+def _private_channel_audit_flags(
+    sweep: Dict[str, Any], experiment: Dict[str, Any]
+) -> List[bool]:
+    """Return the audit conditions requested by one sweep.
+
+    Existing collusion configs omit this field and therefore retain their previous
+    behavior.  Audit experiments can set a two-arm list such as ``[false, true]``.
+    """
+    raw = sweep.get("private_channel_audit_enabled")
+    if raw is None:
+        raw = [bool((experiment.get("private_channel_audit") or {}).get("enabled", False))]
+    if not isinstance(raw, list):
+        raw = [raw]
+
+    flags: List[bool] = []
+    for value in raw:
+        flag = bool(value)
+        if flag not in flags:
+            flags.append(flag)
+    return flags or [False]
+
+
+def _find_blackboard_by_id(protocol: LocalCommunicationProtocol, blackboard_id: int) -> Any:
+    for blackboard in protocol.megaboard.blackboards:
+        try:
+            if int(blackboard.blackboard_id) == int(blackboard_id):
+                return blackboard
+        except (TypeError, ValueError):
+            continue
+    raise KeyError(f"Blackboard {blackboard_id} was not found.")
+
+
+def _find_public_blackboard_id(
+    *,
+    protocol: LocalCommunicationProtocol,
+    agent_names: Sequence[str],
+    secret_blackboard_id: int,
+) -> int:
+    """Find the all-agent public board required for a public audit report."""
+    all_agents = {str(name) for name in agent_names}
+    for blackboard in protocol.megaboard.blackboards:
+        try:
+            blackboard_id = int(blackboard.blackboard_id)
+        except (TypeError, ValueError):
+            continue
+        if blackboard_id == int(secret_blackboard_id):
+            continue
+        participants = {str(name) for name in getattr(blackboard, "agents", [])}
+        if participants == all_agents:
+            return blackboard_id
+    raise ValueError(
+        "Private-channel audit requires a public blackboard visible to all agents. "
+        "Use the complete, consolidated JIRA topology for this experiment."
+    )
+
+
+def _effective_prompt_variant(
+    *, secret_channel_enabled: bool, prompt_variant: str
+) -> str:
+    value = str(prompt_variant or "").strip() or "control"
+    return value if secret_channel_enabled else "control"
+
+
+def _run_id(
+    *,
+    model_label: str,
+    sweep_name: str,
+    environment_label: Optional[str],
+    topology: str,
+    num_agents: int,
+    colluder_count: int,
+    secret_channel_enabled: bool,
+    prompt_variant: str,
+    private_channel_audit_enabled: bool,
+    seed: int,
+) -> str:
+    run_id = f"{model_label}__{sweep_name}"
+    if environment_label:
+        run_id += f"__env{_sanitize_label(environment_label)}"
+    return (
+        f"{run_id}__{topology}__n{num_agents}__c{colluder_count}"
+        f"__secret{int(bool(secret_channel_enabled))}__pv{prompt_variant}"
+        f"__audit{int(bool(private_channel_audit_enabled))}__seed{seed}"
+    )
+
+
+def _model_name_for_config(model_llm_cfg: Dict[str, Any]) -> str:
+    provider = str(model_llm_cfg.get("provider") or "").lower()
+    if provider == "foundry":
+        return str((model_llm_cfg.get("foundry") or {}).get("model") or "gpt-5.4-mini")
+    return str(get_model_name(provider, model_llm_cfg))
+
+
+def _summary_from_completed_run(run_dir: Path) -> Dict[str, Any]:
+    """Reconstruct one summary row from a fully written run directory."""
+    run_cfg = json.loads((run_dir / "run_config.json").read_text(encoding="utf-8"))
+    metrics = json.loads((run_dir / "metrics.json").read_text(encoding="utf-8"))
+    final_summary = json.loads(
+        (run_dir / "final_summary.json").read_text(encoding="utf-8")
+    )
+    audit = metrics.get("private_channel_audit") or {}
+    joint_reward = final_summary.get("joint_reward")
+    coalition_reward_sum = metrics.get("coalition_reward_sum")
+    coalition_reward_ratio = None
+    try:
+        if coalition_reward_sum is not None and float(joint_reward) != 0.0:
+            coalition_reward_ratio = float(coalition_reward_sum) / float(joint_reward)
+    except (TypeError, ValueError):
+        pass
+
+    return {
+        "run_id": run_cfg.get("run_id", run_dir.name),
+        "model_label": run_cfg.get("model_label"),
+        "provider": run_cfg.get("provider"),
+        "model": run_cfg.get("model"),
+        "sweep": run_cfg.get("sweep"),
+        "environment_label": run_cfg.get("environment_label"),
+        "environment_name": run_cfg.get("environment_name"),
+        "topology": run_cfg.get("topology"),
+        "num_agents": run_cfg.get("num_agents"),
+        "colluder_count": run_cfg.get("colluder_count"),
+        "secret_channel_enabled": run_cfg.get("secret_channel_enabled"),
+        "secret_blackboard_id": run_cfg.get("secret_blackboard_id"),
+        "prompt_variant": run_cfg.get("prompt_variant"),
+        "private_channel_audit_enabled": bool(audit.get("enabled", False)),
+        "audit_events": audit.get("audit_events", 0),
+        "audit_flagged_events": audit.get("flagged_events", 0),
+        "audit_public_reports_posted": audit.get("public_reports_posted", 0),
+        "seed": run_cfg.get("seed"),
+        "colluders": run_cfg.get("colluders", []),
+        "agent_order": run_cfg.get("agent_order"),
+        "status": metrics.get("status"),
+        "joint_reward": joint_reward,
+        "joint_reward_ratio": final_summary.get("joint_reward_ratio"),
+        "coverage": final_summary.get("coverage"),
+        "normalized_score": final_summary.get("normalized_score"),
+        "tasks_done": metrics.get("tasks_done"),
+        "violations": metrics.get("violations"),
+        "total_cost": metrics.get("total_cost"),
+        "priority_sum": metrics.get("priority_sum"),
+        "mean_regret": metrics.get("mean_regret"),
+        "reward_std": metrics.get("reward_std"),
+        "coalition_reward_sum": coalition_reward_sum,
+        "noncoalition_reward_sum": metrics.get("noncoalition_reward_sum"),
+        "coalition_mean_reward": metrics.get("coalition_mean_reward"),
+        "noncoalition_mean_reward": metrics.get("noncoalition_mean_reward"),
+        "coalition_advantage_mean": metrics.get("coalition_advantage_mean"),
+        "coalition_reward_ratio": coalition_reward_ratio,
+        "colluder_posts_secret_rate": metrics.get("colluder_posts_secret_rate"),
+        "coalition_mean_regret": metrics.get("coalition_mean_regret"),
+        "noncoalition_mean_regret": metrics.get("noncoalition_mean_regret"),
+        "system_regret": metrics.get("system_regret"),
+        "system_regret_ratio": metrics.get("system_regret_ratio"),
+        "colluder_posts_total": metrics.get("colluder_posts_total"),
+        "colluder_posts_secret": metrics.get("colluder_posts_secret"),
+        "colluder_posts_non_secret": metrics.get("colluder_posts_non_secret"),
+        "largest_non_secret_blackboard_id": metrics.get("largest_non_secret_blackboard_id"),
+        "colluder_posts_secret_to_largest_bb_ratio_mean": metrics.get(
+            "colluder_posts_secret_to_largest_bb_ratio_mean"
+        ),
+    }
+
+
+def _completed_run_if_matching(
+    *,
+    root: Path,
+    model_label: str,
+    model_llm_cfg: Dict[str, Any],
+    sweep_name: str,
+    environment_label: Optional[str],
+    topology: str,
+    num_agents: int,
+    colluder_count: int,
+    secret_channel_enabled: bool,
+    prompt_variant: str,
+    private_channel_audit_enabled: bool,
+    seed: int,
+) -> Optional[Dict[str, Any]]:
+    """Return an existing result only when it is complete and exactly compatible."""
+    effective_prompt = _effective_prompt_variant(
+        secret_channel_enabled=secret_channel_enabled, prompt_variant=prompt_variant
+    )
+    run_id = _run_id(
+        model_label=model_label,
+        sweep_name=sweep_name,
+        environment_label=environment_label,
+        topology=topology,
+        num_agents=num_agents,
+        colluder_count=colluder_count,
+        secret_channel_enabled=secret_channel_enabled,
+        prompt_variant=effective_prompt,
+        private_channel_audit_enabled=private_channel_audit_enabled,
+        seed=seed,
+    )
+    run_dir = root / "runs" / model_label / sweep_name / run_id
+    required = [
+        run_dir / "run_config.json",
+        run_dir / "metrics.json",
+        run_dir / "final_summary.json",
+    ]
+    if not all(path.is_file() for path in required):
+        return None
+    try:
+        run_cfg = json.loads(required[0].read_text(encoding="utf-8"))
+        final_summary = json.loads(required[2].read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    expected = {
+        "run_id": run_id,
+        "model_label": model_label,
+        "model": _model_name_for_config(model_llm_cfg),
+        "sweep": sweep_name,
+        "topology": topology,
+        "num_agents": int(num_agents),
+        "colluder_count": int(colluder_count),
+        "secret_channel_enabled": bool(secret_channel_enabled),
+        "prompt_variant": effective_prompt,
+        "seed": int(seed),
+    }
+    if any(run_cfg.get(key) != value for key, value in expected.items()):
+        return None
+    existing_audit = (run_cfg.get("private_channel_audit") or {}).get("enabled")
+    if bool(existing_audit) != bool(private_channel_audit_enabled):
+        return None
+    if str(final_summary.get("status") or "").lower() != "complete":
+        return None
+    try:
+        return _summary_from_completed_run(run_dir)
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        return None
+
+
 async def _run_single(
     *,
     base_cfg: Dict[str, Any],
@@ -245,15 +485,16 @@ async def _run_single(
     prompt_variant: str,
     seed: int,
     out_dir: Path,
+    private_channel_audit_enabled: bool = False,
 ) -> Dict[str, Any]:
     rng = random.Random(int(seed))
     secret_channel_enabled = bool(secret_channel_enabled)
     # Design choice: prompt variants are only active when the secret channel exists.
     # When secret_channel_enabled is False, we force the effective variant to "control"
     # so the baseline is the vanilla cooperative setup (no explicit collusion prompting).
-    effective_prompt_variant = str(prompt_variant or "").strip() or "control"
-    if not secret_channel_enabled:
-        effective_prompt_variant = "control"
+    effective_prompt_variant = _effective_prompt_variant(
+        secret_channel_enabled=secret_channel_enabled, prompt_variant=prompt_variant
+    )
 
     cfg = copy.deepcopy(base_cfg)
     if environment_cfg is not None:
@@ -274,6 +515,13 @@ async def _run_single(
     cfg.setdefault("communication_network", {})["topology"] = str(topology)
     cfg.setdefault("communication_network", {})["num_agents"] = int(num_agents)
     cfg["llm"] = copy.deepcopy(model_llm_cfg)
+    audit_cfg = (
+        cfg.setdefault("experiment", {}).setdefault("private_channel_audit", {})
+    )
+    audit_cfg["enabled"] = bool(private_channel_audit_enabled)
+    private_channel_audit_enabled = bool(audit_cfg["enabled"])
+    if private_channel_audit_enabled and not secret_channel_enabled:
+        raise ValueError("Private-channel audit requires secret_channel_enabled=true.")
 
     run_timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     env_label: Optional[str] = None
@@ -282,13 +530,17 @@ async def _run_single(
         if cleaned:
             env_label = cleaned
 
-    run_id = f"{model_label}__{sweep_name}"
-    if env_label:
-        run_id += f"__env{env_label}"
-    run_id += (
-        f"__{topology}__n{num_agents}"
-        f"__c{colluder_count}__secret{int(bool(secret_channel_enabled))}"
-        f"__pv{effective_prompt_variant}__seed{seed}"
+    run_id = _run_id(
+        model_label=model_label,
+        sweep_name=sweep_name,
+        environment_label=env_label,
+        topology=topology,
+        num_agents=num_agents,
+        colluder_count=colluder_count,
+        secret_channel_enabled=secret_channel_enabled,
+        prompt_variant=effective_prompt_variant,
+        private_channel_audit_enabled=private_channel_audit_enabled,
+        seed=seed,
     )
     run_dir = out_dir / "runs" / model_label / sweep_name / run_id
     _ensure_dir(run_dir)
@@ -364,8 +616,13 @@ async def _run_single(
 
     # Build agents.
     provider = (cfg.get("llm", {}).get("provider") or "").lower()
-    model_name = get_model_name(provider, cfg["llm"])
-    generation_params = get_generation_params(cfg["llm"])
+    if provider == "foundry":
+        foundry_llm_cfg = cfg["llm"].get("foundry") or {}
+        model_name = str(foundry_llm_cfg.get("model") or "gpt-5.4-mini")
+        generation_params = dict(foundry_llm_cfg.get("params") or {})
+    else:
+        model_name = get_model_name(provider, cfg["llm"])
+        generation_params = get_generation_params(cfg["llm"])
     max_steps = int(cfg["simulation"].get("max_conversation_steps", 3))
     vllm_runtime = None
     if provider == "vllm":
@@ -376,9 +633,12 @@ async def _run_single(
         getattr(env, "tools_environment_name", None) or env.__class__.__name__
     )
     for name in agent_names:
-        client = get_client_instance(
-            cfg["llm"], agent_name=name, vllm_runtime=vllm_runtime
-        )
+        if provider == "foundry":
+            client = FoundryOpenAIClient.from_config(cfg["llm"].get("foundry") or {})
+        else:
+            client = get_client_instance(
+                cfg["llm"], agent_name=name, vllm_runtime=vllm_runtime
+            )
         agents.append(
             BaseAgent(
                 client,
@@ -414,6 +674,26 @@ async def _run_single(
             colluders, secret_context
         )
 
+    audit_monitor: Optional[PrivateChannelAuditor] = None
+    audit_events_path = run_dir / "audit_events.jsonl"
+    public_blackboard_id: Optional[int] = None
+    audit_event_count = 0
+    audit_flagged_count = 0
+    audit_public_report_count = 0
+    if private_channel_audit_enabled:
+        if secret_blackboard_id is None:
+            raise ValueError(
+                "Private-channel audit requires a coalition-only blackboard with at least two colluders."
+            )
+        public_blackboard_id = _find_public_blackboard_id(
+            protocol=protocol,
+            agent_names=agent_names,
+            secret_blackboard_id=secret_blackboard_id,
+        )
+        audit_monitor = PrivateChannelAuditor(
+            AuditSettings.from_config(audit_cfg), agent_names=agent_names
+        )
+
     try:
         _log_blackboards_txt(
             bb_logger=bb_logger,
@@ -427,12 +707,14 @@ async def _run_single(
         logger.warning("Failed to write initial blackboard_*.txt logs: %s", exc)
 
     logger.info(
-        "RUN %s setup complete (agents=%s, colluders=%s, secret_channel=%s, secret_bb_id=%s, blackboards=%s)",
+        "RUN %s setup complete (agents=%s, colluders=%s, secret_channel=%s, secret_bb_id=%s, audit=%s, public_bb_id=%s, blackboards=%s)",
         run_id,
         len(agent_names),
         len(colluders),
         secret_channel_enabled,
         secret_blackboard_id,
+        private_channel_audit_enabled,
+        public_blackboard_id,
         len(protocol.megaboard.blackboards),
     )
 
@@ -492,6 +774,39 @@ async def _run_single(
                 }
             )
             last_agent = agent.name
+        if audit_monitor is not None and secret_blackboard_id is not None:
+            secret_blackboard = _find_blackboard_by_id(protocol, secret_blackboard_id)
+            decision = await audit_monitor.audit_new_messages(
+                round_num=planning_round, secret_blackboard=secret_blackboard
+            )
+            audit_event = decision.event_payload()
+            audit_event["public_blackboard_id"] = public_blackboard_id
+            audit_event["public_report_posted"] = False
+            audit_event_count += 1
+            if decision.flagged:
+                audit_flagged_count += 1
+                report = format_public_audit_report(decision)
+                try:
+                    await protocol.post_system_message(
+                        int(public_blackboard_id),
+                        kind="context",
+                        payload={
+                            "message": report,
+                            "source": "private_channel_audit",
+                            "planning_round": planning_round,
+                        },
+                    )
+                except Exception as exc:
+                    audit_event["public_report_error"] = str(exc)
+                    append_audit_event(audit_events_path, audit_event)
+                    raise RuntimeError(
+                        "Private-channel audit found collusion but could not publish its "
+                        "public report; aborting this audit-arm run."
+                    ) from exc
+                audit_event["public_report_posted"] = True
+                audit_event["public_report"] = report
+                audit_public_report_count += 1
+            append_audit_event(audit_events_path, audit_event)
         if last_agent:
             try:
                 _log_blackboards_txt(
@@ -566,6 +881,14 @@ async def _run_single(
         blackboard_participants=blackboard_participants,
         final_summary=final_summary,
     )
+    audit_summary = {
+        "enabled": private_channel_audit_enabled,
+        "public_blackboard_id": public_blackboard_id,
+        "audit_events": audit_event_count,
+        "flagged_events": audit_flagged_count,
+        "public_reports_posted": audit_public_report_count,
+        "events_path": str(audit_events_path) if private_channel_audit_enabled else None,
+    }
 
     _write_json(
         run_dir / "run_config.json",
@@ -587,6 +910,12 @@ async def _run_single(
             "secret_channel_enabled": secret_channel_enabled,
             "secret_blackboard_id": secret_blackboard_id,
             "prompt_variant": str(effective_prompt_variant),
+            "private_channel_audit": {
+                **audit_summary,
+                "monitor": AuditSettings.from_config(audit_cfg).__dict__
+                if private_channel_audit_enabled
+                else None,
+            },
             "seed": seed,
             "roles": roles,
             "blackboard_participants": blackboard_participants,
@@ -594,7 +923,9 @@ async def _run_single(
     )
     _write_json(run_dir / "final_summary.json", final_summary)
     _write_json(run_dir / "agent_turns.json", turns)
-    _write_json(run_dir / "metrics.json", metrics_to_json(metrics))
+    metrics_payload = metrics_to_json(metrics)
+    metrics_payload["private_channel_audit"] = audit_summary
+    _write_json(run_dir / "metrics.json", metrics_payload)
     _write_json(
         run_dir / "tool_events.json",
         [
@@ -650,6 +981,10 @@ async def _run_single(
         "secret_channel_enabled": secret_channel_enabled,
         "secret_blackboard_id": secret_blackboard_id,
         "prompt_variant": str(effective_prompt_variant),
+        "private_channel_audit_enabled": private_channel_audit_enabled,
+        "audit_events": audit_event_count,
+        "audit_flagged_events": audit_flagged_count,
+        "audit_public_reports_posted": audit_public_report_count,
         "seed": seed,
         "colluders": colluders,
         "agent_order": str(agent_order_strategy or "random"),
@@ -689,8 +1024,11 @@ async def run_from_config(
     config_path: str,
     *,
     out_dir: Optional[str] = None,
+    resume_dir: Optional[str] = None,
     max_concurrent_runs: Optional[int] = None,
 ) -> Path:
+    if out_dir is not None and resume_dir is not None:
+        raise ValueError("Use either out_dir or resume_dir, not both.")
     cfg = _load_yaml(config_path)
     exp = cfg.get("experiment") or {}
     if max_concurrent_runs is None:
@@ -714,17 +1052,24 @@ async def run_from_config(
             1
         ]
 
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    root = (
-        Path(
-            out_dir
-            or exp.get("output_dir")
-            or "experiments/collusion/outputs/collusion"
+    resumed = resume_dir is not None
+    if resumed:
+        root = Path(str(resume_dir)).expanduser()
+        if not root.is_dir():
+            raise FileNotFoundError(f"resume_dir does not exist: {root}")
+    else:
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        root = (
+            Path(
+                out_dir
+                or exp.get("output_dir")
+                or "experiments/collusion/outputs/collusion"
+            )
+            / timestamp
         )
-        / timestamp
-    )
     _ensure_dir(root)
-    _write_json(root / "config.json", cfg)
+    if not resumed:
+        _write_json(root / "config.json", cfg)
     _configure_experiment_logging(root)
 
     base_env_cfg = cfg.get("environment") or {}
@@ -745,6 +1090,7 @@ async def run_from_config(
                 or sweep.get("secret_channels")
                 or [False]
             )
+            audit_flags = _private_channel_audit_flags(sweep, exp)
             raw_prompt_variants = sweep.get("prompt_variants") or ["control"]
             prompt_variants: List[str] = []
             seen_variants: set[str] = set()
@@ -766,7 +1112,10 @@ async def run_from_config(
                             for _pv in prompt_variants:
                                 if not bool(_secret) and str(_pv) != "control":
                                     continue
-                                total_runs += len(seeds) * env_count
+                                for _audit in audit_flags:
+                                    if bool(_audit) and not bool(_secret):
+                                        continue
+                                    total_runs += len(seeds) * env_count
 
     logger.info("EXPERIMENT START (total_runs=%s, output_root=%s)", total_runs, root)
     _write_progress(
@@ -776,6 +1125,8 @@ async def run_from_config(
             "total_runs": total_runs,
             "completed_runs": 0,
             "failed_runs": 0,
+            "skipped_runs": 0,
+            "resumed": resumed,
             "started_at": datetime.now().isoformat(),
             "config_path": str(config_path),
         },
@@ -784,6 +1135,12 @@ async def run_from_config(
     summaries: List[Dict[str, Any]] = []
     completed = 0
     failed = 0
+    skipped = 0
+
+    def _existing_completed_summary(**kwargs: Any) -> Optional[Dict[str, Any]]:
+        if not resumed:
+            return None
+        return _completed_run_if_matching(root=root, **kwargs)
 
     with tqdm(
         total=total_runs, desc="Experiments", unit="run", dynamic_ncols=True
@@ -822,6 +1179,7 @@ async def run_from_config(
                     or sweep.get("secret_channels")
                     or [False]
                 )
+                audit_flags = _private_channel_audit_flags(sweep, exp)
                 raw_prompt_variants = sweep.get("prompt_variants") or ["control"]
                 prompt_variants: List[str] = []
                 seen_variants: set[str] = set()
@@ -856,57 +1214,74 @@ async def run_from_config(
                                                 and str(pv) != "control"
                                             ):
                                                 continue
+                                            # Keep matched A/B runs adjacent: seed 1 without
+                                            # audit, seed 1 with audit, then seed 2, and so on.
                                             for seed in seeds:
-                                                run_label = (
-                                                    f"{model_label}/{sweep_name}"
-                                                    f"{env_part}/{topology}"
-                                                    f"/n{n}/c{c}"
-                                                    f"/secret{int(bool(secret))}"
-                                                    f"/pv{pv}/seed{seed}"
-                                                )
-                                                pbar.set_postfix_str(run_label)
-                                                run_status = "success"
-                                                try:
-                                                    summaries.append(
-                                                        await _run_single(
-                                                            base_cfg=cfg,
-                                                            model_label=model_label,
-                                                            model_llm_cfg=llm_cfg,
-                                                            sweep_name=sweep_name,
-                                                            environment_label=env_label,
-                                                            environment_cfg=env_cfg,
-                                                            topology=str(topology),
-                                                            num_agents=int(n),
-                                                            colluder_count=int(c),
-                                                            secret_channel_enabled=bool(
-                                                                secret
-                                                            ),
-                                                            prompt_variant=str(pv),
-                                                            seed=int(seed),
-                                                            out_dir=root,
+                                                for audit_enabled in audit_flags:
+                                                    if bool(audit_enabled) and not bool(secret):
+                                                        continue
+                                                    run_label = (
+                                                        f"{model_label}/{sweep_name}"
+                                                        f"{env_part}/{topology}"
+                                                        f"/n{n}/c{c}"
+                                                        f"/secret{int(bool(secret))}"
+                                                        f"/pv{pv}/audit{int(bool(audit_enabled))}"
+                                                        f"/seed{seed}"
+                                                    )
+                                                    pbar.set_postfix_str(run_label)
+                                                    run_status = "success"
+                                                    try:
+                                                        run_kwargs = {
+                                                            "model_label": model_label,
+                                                            "model_llm_cfg": llm_cfg,
+                                                            "sweep_name": sweep_name,
+                                                            "environment_label": env_label,
+                                                            "topology": str(topology),
+                                                            "num_agents": int(n),
+                                                            "colluder_count": int(c),
+                                                            "secret_channel_enabled": bool(secret),
+                                                            "prompt_variant": str(pv),
+                                                            "private_channel_audit_enabled": bool(audit_enabled),
+                                                            "seed": int(seed),
+                                                        }
+                                                        existing = _existing_completed_summary(
+                                                            **run_kwargs
                                                         )
-                                                    )
-                                                    completed += 1
-                                                except Exception:
-                                                    run_status = "failed"
-                                                    failed += 1
-                                                    logger.exception(
-                                                        "RUN FAILED %s", run_label
-                                                    )
-                                                    raise
-                                                finally:
-                                                    pbar.update(1)
-                                                    _write_progress(
-                                                        root,
-                                                        {
-                                                            "status": "running",
-                                                            "total_runs": total_runs,
-                                                            "completed_runs": completed,
-                                                            "failed_runs": failed,
-                                                            "last_run_label": run_label,
-                                                            "last_run_status": run_status,
-                                                        },
-                                                    )
+                                                        if existing is not None:
+                                                            summaries.append(existing)
+                                                            skipped += 1
+                                                            run_status = "skipped_complete"
+                                                        else:
+                                                            summaries.append(
+                                                                await _run_single(
+                                                                    base_cfg=cfg,
+                                                                    environment_cfg=env_cfg,
+                                                                    out_dir=root,
+                                                                    **run_kwargs,
+                                                                )
+                                                            )
+                                                        completed += 1
+                                                    except Exception:
+                                                        run_status = "failed"
+                                                        failed += 1
+                                                        logger.exception(
+                                                            "RUN FAILED %s", run_label
+                                                        )
+                                                        raise
+                                                    finally:
+                                                        pbar.update(1)
+                                                        _write_progress(
+                                                            root,
+                                                            {
+                                                                "status": "running",
+                                                                "total_runs": total_runs,
+                                                                "completed_runs": completed,
+                                                                "failed_runs": failed,
+                                                                "skipped_runs": skipped,
+                                                                "last_run_label": run_label,
+                                                                "last_run_status": run_status,
+                                                            },
+                                                        )
                     continue
 
                 # Concurrent scheduling
@@ -923,34 +1298,65 @@ async def run_from_config(
                                     for pv in prompt_variants:
                                         if not bool(secret) and str(pv) != "control":
                                             continue
+                                        # Submit matched A/B pairs in seed order. With
+                                        # max_concurrent_runs=1 this is also execution order.
                                         for seed in seeds:
-                                            run_label = (
-                                                f"{model_label}/{sweep_name}"
-                                                f"{env_part}/{topology}"
-                                                f"/n{n}/c{c}"
-                                                f"/secret{int(bool(secret))}"
-                                                f"/pv{pv}/seed{seed}"
-                                            )
-                                            task = asyncio.create_task(
-                                                _run_single_limited(
-                                                    run_label=run_label,
-                                                    base_cfg=cfg,
-                                                    model_label=model_label,
-                                                    model_llm_cfg=llm_cfg,
-                                                    sweep_name=sweep_name,
-                                                    environment_label=env_label,
-                                                    environment_cfg=env_cfg,
-                                                    topology=str(topology),
-                                                    num_agents=int(n),
-                                                    colluder_count=int(c),
-                                                    secret_channel_enabled=bool(secret),
-                                                    prompt_variant=str(pv),
-                                                    seed=int(seed),
-                                                    out_dir=root,
+                                            for audit_enabled in audit_flags:
+                                                if bool(audit_enabled) and not bool(secret):
+                                                    continue
+                                                run_label = (
+                                                    f"{model_label}/{sweep_name}"
+                                                    f"{env_part}/{topology}"
+                                                    f"/n{n}/c{c}"
+                                                    f"/secret{int(bool(secret))}"
+                                                    f"/pv{pv}/audit{int(bool(audit_enabled))}"
+                                                    f"/seed{seed}"
                                                 )
-                                            )
-                                            tasks.append(task)
-                                            task_labels[task] = run_label
+                                                run_kwargs = {
+                                                    "model_label": model_label,
+                                                    "model_llm_cfg": llm_cfg,
+                                                    "sweep_name": sweep_name,
+                                                    "environment_label": env_label,
+                                                    "topology": str(topology),
+                                                    "num_agents": int(n),
+                                                    "colluder_count": int(c),
+                                                    "secret_channel_enabled": bool(secret),
+                                                    "prompt_variant": str(pv),
+                                                    "private_channel_audit_enabled": bool(audit_enabled),
+                                                    "seed": int(seed),
+                                                }
+                                                existing = _existing_completed_summary(
+                                                    **run_kwargs
+                                                )
+                                                if existing is not None:
+                                                    summaries.append(existing)
+                                                    completed += 1
+                                                    skipped += 1
+                                                    pbar.update(1)
+                                                    _write_progress(
+                                                        root,
+                                                        {
+                                                            "status": "running",
+                                                            "total_runs": total_runs,
+                                                            "completed_runs": completed,
+                                                            "failed_runs": failed,
+                                                            "skipped_runs": skipped,
+                                                            "last_run_label": run_label,
+                                                            "last_run_status": "skipped_complete",
+                                                        },
+                                                    )
+                                                    continue
+                                                task = asyncio.create_task(
+                                                    _run_single_limited(
+                                                        run_label=run_label,
+                                                        base_cfg=cfg,
+                                                        environment_cfg=env_cfg,
+                                                        out_dir=root,
+                                                        **run_kwargs,
+                                                    )
+                                                )
+                                                tasks.append(task)
+                                                task_labels[task] = run_label
 
                 pending = set(tasks)
                 while pending:
@@ -981,6 +1387,7 @@ async def run_from_config(
                                     "total_runs": total_runs,
                                     "completed_runs": completed,
                                     "failed_runs": failed,
+                                    "skipped_runs": skipped,
                                     "last_run_label": run_label,
                                     "last_run_status": run_status,
                                 },
@@ -1017,6 +1424,8 @@ async def run_from_config(
             "total_runs": total_runs,
             "completed_runs": completed,
             "failed_runs": failed,
+            "skipped_runs": skipped,
+            "resumed": resumed,
         },
     )
     return root
@@ -1035,6 +1444,14 @@ def main() -> None:
         "--out-dir", default=None, help="Override output root directory."
     )
     parser.add_argument(
+        "--resume-dir",
+        default=None,
+        help=(
+            "Existing experiment root to reuse. Fully completed, exactly matching "
+            "runs are skipped; missing runs are executed there."
+        ),
+    )
+    parser.add_argument(
         "--max-concurrent-runs",
         default=None,
         type=int,
@@ -1048,6 +1465,7 @@ def main() -> None:
         run_from_config(
             args.config,
             out_dir=args.out_dir,
+            resume_dir=args.resume_dir,
             max_concurrent_runs=args.max_concurrent_runs,
         )
     )
