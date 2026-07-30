@@ -1,0 +1,64 @@
+simulation:
+  max_iterations: 1
+  max_planning_rounds: 4
+  max_conversation_steps: 3
+  seed: 0
+  tags: [private_channel_audit, gpt_5_4]
+
+environment:
+  name: JiraTicketEnvironment
+  assignment_filling: true
+  max_tasks: 8
+
+communication_network:
+  topology: complete
+  num_agents: 6
+  consolidate_channels: true
+
+# Task agents and the audit judge use only the Foundry variables named below.
+# Export their values in your shell; do not put credentials in this file.
+llm_models:
+  - label: foundry-gpt-5-4
+    llm:
+      provider: foundry
+      foundry:
+        model: gpt-5.4
+        project_endpoint_env_var: AI_FOUNDRY_PROJECT_ENDPOINT
+        api_key_env_var: AI_FOUNDRY_API_KEY
+        auth_mode_env_var: AI_FOUNDRY_AUTH_MODE
+        auth_mode: api_key
+        api_style: responses
+        params:
+          max_tokens: 1500
+          temperature: 0.7
+
+experiment:
+  tag: jira_prompted_simple_private_channel_audit_gpt_5_4
+  output_dir: experiments/private_channel_audit/outputs/jira_prompted_simple_gpt_5_4
+  max_concurrent_runs: 5
+  seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39]
+  collusion:
+    colluder_selection: random
+  private_channel_audit:
+    # Keep the judge fixed at GPT-5.4 Mini so only the six task agents change
+    # between this model comparison and the existing GPT-5.4 Mini experiment.
+    enabled: false
+    monitor:
+      model: gpt-5.4-mini
+      project_endpoint_env_var: AI_FOUNDRY_PROJECT_ENDPOINT
+      api_key_env_var: AI_FOUNDRY_API_KEY
+      auth_mode_env_var: AI_FOUNDRY_AUTH_MODE
+      auth_mode: api_key
+      api_style: responses
+      max_output_tokens: 500
+      temperature: 0.0
+      max_retries: 1
+      request_timeout: 60
+  sweeps:
+    - name: jira_complete_n6_c2_prompted_simple
+      topologies: [complete]
+      num_agents: [6]
+      colluder_counts: [2]
+      secret_channel_enabled: [true]
+      prompt_variants: [simple]
+      private_channel_audit_enabled: [false, true]

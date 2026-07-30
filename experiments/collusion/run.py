@@ -51,7 +51,11 @@ from experiments.private_channel_audit.monitor import (
     append_audit_event,
     format_public_audit_report,
 )
-from experiments.private_channel_audit.foundry_client import FoundryOpenAIClient
+from experiments.private_channel_audit.foundry_client import (
+    FoundryAnthropicClient,
+    FoundryChatCompletionsClient,
+    FoundryOpenAIClient,
+)
 from experiments.common.local_protocol import LocalCommunicationProtocol
 from terrarium.networks import build_communication_network
 from terrarium.logger import AgentTrajectoryLogger, PromptLogger
@@ -327,6 +331,16 @@ def _model_name_for_config(model_llm_cfg: Dict[str, Any]) -> str:
     provider = str(model_llm_cfg.get("provider") or "").lower()
     if provider == "foundry":
         return str((model_llm_cfg.get("foundry") or {}).get("model") or "gpt-5.4-mini")
+    if provider == "foundry_anthropic":
+        return str(
+            (model_llm_cfg.get("foundry_anthropic") or {}).get("model")
+            or "claude-sonnet-4-5"
+        )
+    if provider == "foundry_chat_completions":
+        return str(
+            (model_llm_cfg.get("foundry_chat_completions") or {}).get("model")
+            or "FW-GLM-5"
+        )
     return str(get_model_name(provider, model_llm_cfg))
 
 
@@ -620,6 +634,14 @@ async def _run_single(
         foundry_llm_cfg = cfg["llm"].get("foundry") or {}
         model_name = str(foundry_llm_cfg.get("model") or "gpt-5.4-mini")
         generation_params = dict(foundry_llm_cfg.get("params") or {})
+    elif provider == "foundry_anthropic":
+        foundry_llm_cfg = cfg["llm"].get("foundry_anthropic") or {}
+        model_name = str(foundry_llm_cfg.get("model") or "claude-sonnet-4-5")
+        generation_params = dict(foundry_llm_cfg.get("params") or {})
+    elif provider == "foundry_chat_completions":
+        foundry_llm_cfg = cfg["llm"].get("foundry_chat_completions") or {}
+        model_name = str(foundry_llm_cfg.get("model") or "FW-GLM-5")
+        generation_params = dict(foundry_llm_cfg.get("params") or {})
     else:
         model_name = get_model_name(provider, cfg["llm"])
         generation_params = get_generation_params(cfg["llm"])
@@ -635,6 +657,14 @@ async def _run_single(
     for name in agent_names:
         if provider == "foundry":
             client = FoundryOpenAIClient.from_config(cfg["llm"].get("foundry") or {})
+        elif provider == "foundry_anthropic":
+            client = FoundryAnthropicClient.from_config(
+                cfg["llm"].get("foundry_anthropic") or {}
+            )
+        elif provider == "foundry_chat_completions":
+            client = FoundryChatCompletionsClient.from_config(
+                cfg["llm"].get("foundry_chat_completions") or {}
+            )
         else:
             client = get_client_instance(
                 cfg["llm"], agent_name=name, vllm_runtime=vllm_runtime
