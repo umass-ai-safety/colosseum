@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from envs.dcops.personal_assistant.personal_assistant_prompts import (
+from terrarium.environments.dcops.personal_assistant.personal_assistant_prompts import (
     PersonalAssistantPrompts,
 )
 

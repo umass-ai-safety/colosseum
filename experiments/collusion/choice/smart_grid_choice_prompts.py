@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from envs.dcops.smart_grid.smartgrid_prompts import SmartGridPrompts
+from terrarium.environments.dcops.smart_grid.smartgrid_prompts import SmartGridPrompts
 
 
 class SmartGridChoicePrompts(SmartGridPrompts):

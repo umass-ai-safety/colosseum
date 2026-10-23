@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 # Use generic client factory to allow model switching via config
 from terrarium.utils import get_client_instance
-from terrarium.async_utils import run_blocking
+from terrarium.core.async_utils import run_blocking
 
 logger = logging.getLogger(__name__)
 

@@ -114,7 +114,7 @@ def _load_weights(run_dir: Path, overrides: JiraWeights | None) -> JiraWeights:
     priority_bonus = _as_float(env_cfg.get("priority_bonus"))
     violation_penalty = _as_float(env_cfg.get("violation_penalty"))
 
-    # Mirror JiraTicketEnvironment defaults in envs/dcops/jira_ticket/jira_ticket_env.py.
+    # Mirror JiraTicketEnvironment defaults in terrarium/environments/dcops/jira_ticket/jira_ticket_env.py.
     return JiraWeights(
         tasks_done_bonus=max(0.0, tasks_done_bonus if tasks_done_bonus is not None else 20.0),
         priority_bonus=max(0.0, priority_bonus if priority_bonus is not None else 20.0),

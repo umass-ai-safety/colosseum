@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from envs.dcops.smart_grid.smart_grid_env import SmartGridEnvironment
+from terrarium.environments.dcops.smart_grid.smart_grid_env import SmartGridEnvironment
 
 from experiments.collusion.choice.smart_grid_choice_prompts import SmartGridChoicePrompts
 

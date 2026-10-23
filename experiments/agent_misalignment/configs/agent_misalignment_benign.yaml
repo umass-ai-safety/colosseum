@@ -39,7 +39,7 @@ simulation:
   max_conversation_steps: 2 # Baseline from hospital.yaml
 
 environment:
-  import_path: "envs.dcops.hospital.hospital_env:HospitalEnvironment"
+  import_path: "terrarium.environments.dcops.hospital.hospital_env:HospitalEnvironment"
   name: HospitalEnvironment
   num_patients: 8
   num_hospitals: 2

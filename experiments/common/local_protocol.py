@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence
 
-from terrarium.blackboard import Megaboard, format_blackboard_events_for_prompt
+from terrarium.core.blackboard import Megaboard, format_blackboard_events_for_prompt
 from terrarium.communication_protocols.base import BaseCommunicationProtocol
-from terrarium.environment_tools import (
+from terrarium.tools.environment import (
     EnvironmentToolsNotFoundError,
     instantiate_environment_tools,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -37,12 +40,13 @@ class LocalCommunicationProtocol(BaseCommunicationProtocol):
         # Environment tools implementation (local, no server).
         self._env_tools: Any = None
         self._env_tools_env_name: Optional[str] = None
+        self._env_tools_env: Any = None
 
     def _get_env_tools(self, environment: Any) -> Any:
         env_name = ""
         if environment is not None:
             # Allow environment subclasses to opt into a base toolset without requiring a
-            # duplicate `*Tools` class to exist under envs/**/_tools.py.
+            # duplicate `*Tools` class to exist under terrarium/environments/**/*_tools.py.
             env_name = str(
                 getattr(environment, "tools_environment_name", None)
                 or environment.__class__.__name__
@@ -52,9 +56,18 @@ class LocalCommunicationProtocol(BaseCommunicationProtocol):
             raise EnvironmentToolsNotFoundError(
                 "Environment missing or invalid (no __class__.__name__)."
             )
-        if self._env_tools is None or self._env_tools_env_name != env_name:
-            self._env_tools = instantiate_environment_tools(env_name, self.megaboard)
+        # Tools hold a reference to the environment they mutate (Terrarium >= 0.2.0),
+        # so rebuild them whenever the environment instance changes, not just its name.
+        if (
+            self._env_tools is None
+            or self._env_tools_env_name != env_name
+            or self._env_tools_env is not environment
+        ):
+            self._env_tools = instantiate_environment_tools(
+                env_name, self.megaboard, environment=environment
+            )
             self._env_tools_env_name = env_name
+            self._env_tools_env = environment
         return self._env_tools
 
     def _record_tool_event(
@@ -180,40 +193,21 @@ class LocalCommunicationProtocol(BaseCommunicationProtocol):
             )
             return result
 
-        env_state = {}
-        if hasattr(env, "get_serializable_state"):
-            try:
-                env_state = env.get_serializable_state()
-            except Exception:
-                env_state = {}
-
-        response = env_tools.handle_tool_call(
-            tool_name,
-            agent_name,
-            arguments,
-            phase=phase,
-            iteration=iteration,
-            env_state=env_state,
-        )
-
-        # Apply environment state updates if present.
-        state_updates = None
-        if isinstance(response, dict):
-            if "state_updates" in response:
-                state_updates = response.get("state_updates")
-            elif "result" in response and isinstance(response.get("result"), dict):
-                state_updates = response["result"].get("state_updates")
-
-        if state_updates and hasattr(env, "apply_state_updates"):
-            try:
-                env.apply_state_updates(state_updates)
-            except Exception:
-                pass
-            if hasattr(env, "post_tool_execution_callback"):
-                try:
-                    env.post_tool_execution_callback(state_updates, response)
-                except Exception:
-                    pass
+        # Terrarium >= 0.2.0 tools mutate the bound environment directly, so there is
+        # no env_state snapshot to pass in and no state_updates to apply afterwards.
+        # A tool can raise after mutating state; catch it here (with the same result
+        # BaseAgent would build) so the call is still recorded and secret boards scrubbed.
+        try:
+            response = env_tools.handle_tool_call(
+                tool_name,
+                agent_name,
+                arguments,
+                phase=phase,
+                iteration=iteration,
+            )
+        except Exception as exc:
+            logger.exception("Environment tool %s raised", tool_name)
+            response = {"error": f"Error executing {tool_name}: {exc}"}
 
         self._record_tool_event(
             tool_name=tool_name,

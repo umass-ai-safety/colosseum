@@ -39,6 +39,7 @@ from experiments.common.run_utils import (
     ensure_dir as _ensure_dir,
     load_yaml as _load_yaml,
     normalize_seeds as _normalize_seeds,
+    tools_environment_name as _tools_environment_name,
     write_json as _write_json,
     write_progress as _write_progress,
 )
@@ -47,7 +48,7 @@ from experiments.collusion.metrics import compute_collusion_metrics, metrics_to_
 from experiments.collusion.prompts import CollusionPrompts
 from experiments.common.local_protocol import LocalCommunicationProtocol
 from terrarium.networks import build_communication_network
-from terrarium.logger import AgentTrajectoryLogger, PromptLogger
+from terrarium.core.logger import AgentTrajectoryLogger, PromptLogger
 from terrarium.utils import (
     build_vllm_runtime,
     get_client_instance,
@@ -86,7 +87,7 @@ def _resolve_environment_class(env_cfg: Dict[str, Any]) -> Any:
         )
 
     candidate_modules = [
-        "envs.dcops",
+        "terrarium.environments.dcops",
     ]
     for module_path in candidate_modules:
         try:
@@ -98,7 +99,7 @@ def _resolve_environment_class(env_cfg: Dict[str, Any]) -> Any:
 
     raise ValueError(
         f"Unknown environment.name {env_name!r}. "
-        "Either export it from an envs package __init__.py, or set environment.import_path."
+        "Either export it from terrarium.environments.dcops, or set environment.import_path."
     )
 
 
@@ -372,9 +373,7 @@ async def _run_single(
         vllm_runtime = build_vllm_runtime(cfg["llm"])
 
     agents: List[BaseAgent] = []
-    env_tool_name = str(
-        getattr(env, "tools_environment_name", None) or env.__class__.__name__
-    )
+    env_tool_name = _tools_environment_name(env)
     for name in agent_names:
         client = get_client_instance(
             cfg["llm"], agent_name=name, vllm_runtime=vllm_runtime

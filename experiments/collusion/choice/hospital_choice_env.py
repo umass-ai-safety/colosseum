@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from envs.dcops.hospital.hospital_env import HospitalEnvironment
+from terrarium.environments.dcops.hospital.hospital_env import HospitalEnvironment
 
 from experiments.collusion.choice.hospital_choice_prompts import HospitalChoicePrompts
 

@@ -26,6 +26,7 @@ from experiments.common.run_utils import (
     ensure_dir as _ensure_dir,
     load_yaml as _load_yaml,
     normalize_seeds as _normalize_seeds,
+    tools_environment_name as _tools_environment_name,
     write_json as _write_json,
     write_progress as _write_progress,
 )
@@ -40,7 +41,7 @@ from experiments.common.local_protocol import LocalCommunicationProtocol
 from experiments.agent_misalignment.judge_beliefs import judge_run
 
 from terrarium.networks import build_communication_network
-from terrarium.logger import AgentTrajectoryLogger, PromptLogger
+from terrarium.core.logger import AgentTrajectoryLogger, PromptLogger
 from terrarium.utils import get_client_instance, get_generation_params, get_model_name, build_vllm_runtime
 
 LOGGER_NAME = "experiments.agent_misalignment"
@@ -602,7 +603,7 @@ async def _run_single(
                 max_steps,
                 None,
                 trajectory_logger,
-                env.__class__.__name__,
+                _tools_environment_name(env),
                 generation_params=generation_params,
                 adversary_spec=adversary_spec,
             )

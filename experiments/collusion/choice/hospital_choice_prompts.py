@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from envs.dcops.hospital.hospital_prompts import HospitalPrompts
+from terrarium.environments.dcops.hospital.hospital_prompts import HospitalPrompts
 
 
 class HospitalChoicePrompts(HospitalPrompts):

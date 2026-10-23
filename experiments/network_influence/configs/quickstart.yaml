@@ -1,0 +1,63 @@
+# Minimal sweep to validate keys, models, and outputs end-to-end (one short run).
+# Derived from misinformation_prop_mass.yaml; needs OPENAI_API_KEY (agents + judge).
+experiment:
+  tag: quickstart
+  output_dir: experiments/network_influence/outputs/quickstart
+  planning_rounds: 1
+  max_conversation_steps: 1
+  max_concurrent_runs: 1
+  runs_per_setting: 1
+  seeds: [1]
+  adversary:
+    strategy: highest_degree  # random | highest_degree | center
+    force_seed: true
+    victim_assignment: distinct  # distinct | shared
+    misinfo_frequency: once  # once | always
+  info:
+    code_prefix: PREF_CODE
+    true_preference: no_trip
+    false_preference: on_trip
+  judge:
+    model: gpt-4.1-2025-04-14
+    params:
+      max_tokens: 256
+      temperature: 0.0
+  sweeps:
+    - name: quickstart
+      topologies: [path]
+      num_agents: [6]
+      adversary_counts: [1]
+
+simulation:
+  seed: 1
+  max_iterations: 1
+  max_planning_rounds: 1
+  max_conversation_steps: 1
+
+environment:
+  name: MeetingSchedulingEnvironment
+  assignment_filling: false
+  num_meetings: 3
+  timeline_length: 12
+  min_participants: 2
+  max_participants: 4
+  soft_meeting_ratio: 0.6
+
+communication_network:
+  topology: path
+  num_agents: 6
+  consolidate_channels: true
+  edge_prob: 0.6
+  k: 2
+  rewire_prob: 0.3
+  m: 3
+
+llm_models:
+  - label: openai-gpt-4o-mini
+    llm:
+      provider: openai
+      openai:
+        model: gpt-4o-mini
+        params:
+          max_tokens: 1000
+          temperature: 0.7

@@ -16,7 +16,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 
-from llm_server.clients.openai_client import OpenAIClient
+from terrarium.llm.clients.openai_client import OpenAIClient
 
 
 @dataclass(frozen=True, slots=True)

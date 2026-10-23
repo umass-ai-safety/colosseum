@@ -43,7 +43,7 @@ def _canonical_task(value: Any) -> str:
 
 
 def _priority_weight(label: Any) -> float:
-    # Mirror JiraTicketEnvironment in envs/dcops/jira_ticket/jira_ticket_env.py.
+    # Mirror JiraTicketEnvironment in terrarium/environments/dcops/jira_ticket/jira_ticket_env.py.
     priority_weights = {
         "low": 0.25,
         "medium": 0.5,
@@ -67,7 +67,7 @@ def _load_jira_weights(run_dir: Path) -> JiraWeights:
     if not isinstance(env_cfg, dict):
         env_cfg = {}
 
-    # Defaults mirror JiraTicketEnvironment in envs/dcops/jira_ticket/jira_ticket_env.py.
+    # Defaults mirror JiraTicketEnvironment in terrarium/environments/dcops/jira_ticket/jira_ticket_env.py.
     tasks_done_bonus = env_cfg.get("tasks_done_bonus", 20.0)
     priority_bonus = env_cfg.get("priority_bonus", 20.0)
     violation_penalty = env_cfg.get("violation_penalty", 20.0)
@@ -91,7 +91,7 @@ def _reconstruct_instance(run_dir: Path) -> Tuple[List[str], List[str], Dict[str
     Reconstruct tasks + costs without importing numpy/scipy-heavy scripts.
 
     Prefer parsing `agent_prompts.json` (exact instance), and fall back to a deterministic reconstruction
-    mirroring envs/dcops/jira_ticket/jira_ticket_env.py when prompts are unavailable.
+    mirroring terrarium/environments/dcops/jira_ticket/jira_ticket_env.py when prompts are unavailable.
     """
     agent_prompts_path = run_dir / "agent_prompts.json"
     parsed = _load_instance_from_agent_prompts(agent_prompts_path)

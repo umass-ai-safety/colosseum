@@ -53,6 +53,7 @@ from experiments.common.run_utils import (
     ensure_dir as _ensure_dir,
     load_yaml as _load_yaml,
     normalize_seeds as _normalize_seeds,
+    tools_environment_name as _tools_environment_name,
     write_json as _write_json,
     write_progress as _write_progress,
 )
@@ -65,9 +66,9 @@ from experiments.network_influence.judge_beliefs import JudgeConfig, judge_agent
 from experiments.network_influence.metrics import compute_run_metrics
 from experiments.network_influence.prompts import NetworkInfluencePrompts
 from experiments.common.local_protocol import LocalCommunicationProtocol
-from llm_server.clients.openai_client import OpenAIClient
+from terrarium.llm.clients.openai_client import OpenAIClient
 from terrarium.networks import build_communication_network
-from terrarium.logger import AgentTrajectoryLogger
+from terrarium.core.logger import AgentTrajectoryLogger
 from terrarium.utils import (
     build_vllm_runtime,
     get_client_instance,
@@ -251,7 +252,7 @@ def _resolve_environment_class(env_cfg: Dict[str, Any]) -> Any:
 
     # Common built-ins live under these packages.
     candidate_modules = [
-        "envs.dcops",
+        "terrarium.environments.dcops",
     ]
     for module_path in candidate_modules:
         try:
@@ -263,18 +264,46 @@ def _resolve_environment_class(env_cfg: Dict[str, Any]) -> Any:
 
     raise ValueError(
         f"Unknown environment.name {env_name!r}. "
-        "Either export it from an envs package __init__.py, or set environment.import_path."
+        "Either export it from terrarium.environments.dcops, or set environment.import_path."
     )
+
+
+def _entity_collections(env: Any) -> Dict[str, Any]:
+    """
+    Dict-like entity collections read off the environment, keyed and ordered like the
+    `get_serializable_state()` payload that Terrarium < 0.2.0 exposed (removed in 0.2.0).
+    Order matters: it fixes which collection `_choose_target_item_id` falls back to.
+    """
+    instance = getattr(env, "instance", None)
+    collections: Dict[str, Any] = {}
+    meetings = getattr(instance, "meetings", None)
+    if meetings:
+        collections["meetings"] = {
+            m.meeting_id: {"participants": list(m.participants)} for m in meetings
+        }
+    for key, value in (
+        ("tasks", getattr(env, "tasks", None)),
+        ("patient_states", getattr(env, "patient_states", None)),
+        ("outfit_selections", getattr(env, "outfit_selections", None)),
+        ("wardrobe_options", getattr(instance, "wardrobe", None)),
+        ("machines", getattr(instance, "machines", None)),
+        ("sources", getattr(instance, "sources", None)),
+    ):
+        if isinstance(value, dict):
+            collections[key] = value
+    return collections
 
 
 def _choose_target_item_id(env: Any, *, target_agent: str, rng: random.Random) -> str:
     """
     Best-effort selection of an item identifier to anchor the misinformation scenario.
 
-    Preference order:
-      1) env.get_serializable_state()['meetings'] with participant filter
-      2) env.get_serializable_state()['tasks']
-      3) env.get_serializable_state()['patient_states']
+    Entity collections come from env.get_serializable_state() when an environment still
+    provides one (custom environments), else from _entity_collections() (Terrarium >= 0.2.0
+    built-ins). Preference order:
+      1) 'meetings' with participant filter
+      2) 'tasks'
+      3) 'patient_states'
       4) CoLLAB-style env.problem.agent_variables(target_agent)
     """
     env_state: Dict[str, Any] = {}
@@ -283,6 +312,8 @@ def _choose_target_item_id(env: Any, *, target_agent: str, rng: random.Random) -
             env_state = env.get_serializable_state() or {}
         except Exception:
             env_state = {}
+    if not env_state:
+        env_state = _entity_collections(env)
 
     meetings = env_state.get("meetings")
     if isinstance(meetings, dict) and meetings:
@@ -675,7 +706,7 @@ async def _run_single(
                 max_steps,
                 None,
                 trajectory_logger,
-                env.__class__.__name__,
+                _tools_environment_name(env),
                 generation_params=generation_params,
                 adversary_spec=adversary_spec,
             )

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from envs.dcops.jira_ticket.jira_ticket_prompts import JiraTicketPrompts
+from terrarium.environments.dcops.jira_ticket.jira_ticket_prompts import JiraTicketPrompts
 
 
 class JiraTicketChoicePrompts(JiraTicketPrompts):

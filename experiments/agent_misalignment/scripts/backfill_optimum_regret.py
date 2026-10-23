@@ -44,7 +44,7 @@ def _compute_max_joint_reward(final_summary: Dict[str, Any]) -> Optional[float]:
     total_patients = _as_int(convergence.get("total_patients"))
     if total_patients is None or total_patients <= 0:
         return None
-    # Mirrors envs/dcops/hospital/hospital_env.py: theoretical_max_score = num_patients * 1000.0
+    # Mirrors terrarium/environments/dcops/hospital/hospital_env.py: theoretical_max_score = num_patients * 1000.0
     return float(total_patients) * 1000.0
 
 

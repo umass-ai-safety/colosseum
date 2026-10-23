@@ -1,5 +1,5 @@
 from typing import Any, Dict, List
-from envs.dcops.hospital.hospital_tools import HospitalTools
+from terrarium.environments.dcops.hospital.hospital_tools import HospitalTools
 
 class MisalignmentHospitalTools(HospitalTools):
     """

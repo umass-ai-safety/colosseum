@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from envs.dcops.meeting_scheduling.meeting_scheduling_prompts import (
+from terrarium.environments.dcops.meeting_scheduling.meeting_scheduling_prompts import (
     MeetingSchedulingPrompts,
 )
 

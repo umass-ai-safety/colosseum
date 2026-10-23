@@ -92,7 +92,7 @@ def _infer_missing_resources(convergence_report: Dict[str, Any]) -> Optional[Lis
 
 
 _CONSUMPTION_MAP: Dict[str, List[str]] = {
-    # Mirrors HospitalEnvironment.consumption_map in envs/dcops/hospital/hospital_env.py
+    # Mirrors HospitalEnvironment.consumption_map in terrarium/environments/dcops/hospital/hospital_env.py
     "Surgery": ["Anesthetics", "Surgical_Packs", "PPE_Sets", "IV_Kits", "Pain_Killers"],
     "Radiology": ["Radio_Contrast", "PPE_Sets", "IV_Kits"],
     "Ward": ["Oxygen_Tanks", "IV_Kits", "Pain_Killers", "PPE_Sets"],

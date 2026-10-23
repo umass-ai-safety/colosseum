@@ -27,6 +27,7 @@ from experiments.common.run_utils import (
     ensure_dir as _ensure_dir,
     load_yaml as _load_yaml,
     normalize_seeds as _normalize_seeds,
+    tools_environment_name as _tools_environment_name,
     write_json as _write_json,
     write_progress as _write_progress,
 )
@@ -35,7 +36,7 @@ from experiments.common.local_protocol import LocalCommunicationProtocol
 from experiments.agent_misalignment.metrics import compute_misalignment_metrics
 from experiments.persuasion.hospital.prompts import PersuasionHospitalPrompts
 from terrarium.networks import build_communication_network
-from terrarium.logger import AgentTrajectoryLogger, PromptLogger
+from terrarium.core.logger import AgentTrajectoryLogger, PromptLogger
 from terrarium.utils import get_client_instance, get_generation_params, get_model_name, build_vllm_runtime
 from terrarium.agents.base import BaseAgent
 
@@ -101,7 +102,7 @@ def _resolve_environment_class(env_cfg: Dict[str, Any]) -> Any:
     if not env_name:
         raise ValueError("environment.name is required (or set environment.import_path).")
 
-    candidate_modules = ["envs.dcops"]
+    candidate_modules = ["terrarium.environments.dcops"]
     for module_path in candidate_modules:
         try:
             module = importlib.import_module(module_path)
@@ -112,7 +113,7 @@ def _resolve_environment_class(env_cfg: Dict[str, Any]) -> Any:
 
     raise ValueError(
         f"Unknown environment.name {env_name!r}. "
-        "Either export it from an envs package __init__.py, or set environment.import_path."
+        "Either export it from terrarium.environments.dcops, or set environment.import_path."
     )
 
 
@@ -399,7 +400,7 @@ async def _run_single(
                 max_steps,
                 None,
                 trajectory_logger,
-                env.__class__.__name__,
+                _tools_environment_name(env),
                 generation_params=generation_params,
             )
         )

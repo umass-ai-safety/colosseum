@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from envs.dcops.jira_ticket.jira_ticket_env import JiraTicketEnvironment
+from terrarium.environments.dcops.jira_ticket.jira_ticket_env import JiraTicketEnvironment
 
 from experiments.collusion.choice.jira_ticket_choice_prompts import (
     JiraTicketChoicePrompts,
