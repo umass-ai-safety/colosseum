@@ -25,7 +25,7 @@ This repo contains experiments for Colosseum under `experiments/` that utilizes 
 1) Clone with submodules (CoLLAB is used by the DCOP environments):
 - `git clone --recurse-submodules https://github.com/umass-ai-safety/colosseum.git && cd colosseum`
 - Already cloned without them? Run `git submodule update --init --recursive`.
-- Alternative: clone [CoLLAB](https://github.com/Saad-Mahmud/CoLLAB_SEA) anywhere and `export TERRARIUM_COLLAB_PATH=/path/to/CoLLAB` in your shell. (Setting it in `.env` does not work: Terrarium reads it when the environments are imported, before `.env` is loaded.)
+- Alternative: clone [CoLLAB](https://github.com/Saad-Mahmud/CoLLAB_SEA) anywhere and set `TERRARIUM_COLLAB_PATH=/path/to/CoLLAB` in `.env` (step 3) or your shell.
 
 2) Create env + install deps:
 - `uv venv --python 3.11 .venv`
@@ -108,7 +108,7 @@ Then recreate the venv so no files from the PyPI install shadow the checkout (Te
 rm -rf .venv && uv venv --python 3.11 .venv && uv sync --no-install-project
 ```
 
-Edits under `../Terrarium/terrarium/` then take effect without reinstalling. (A plain `uv pip install -e` is undone by the next `uv sync`.) This also rewrites `uv.lock` to point at your local checkout, so keep the `pyproject.toml` and `uv.lock` changes out of commits (`git restore pyproject.toml uv.lock` before committing).
+Edits under `../Terrarium/terrarium/` then take effect without reinstalling. Keys still come from this repo's `.env`; a `.env` in `../Terrarium` is ignored. (A plain `uv pip install -e` is undone by the next `uv sync`.) This also rewrites `uv.lock` to point at your local checkout, so keep the `pyproject.toml` and `uv.lock` changes out of commits (`git restore pyproject.toml uv.lock` before committing).
 
 ## Citation
 Please cite us using:

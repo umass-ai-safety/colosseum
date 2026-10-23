@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "terrarium-agents[providers,science,plots]==0.2.1",
-  "python-dotenv>=1.1.1",
+  "python-dotenv>=1.2.1",
 ]
 
 [project.optional-dependencies]

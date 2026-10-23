@@ -637,7 +637,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "python-dotenv", specifier = ">=1.1.1" },
+    { name = "python-dotenv", specifier = ">=1.2.1" },
     { name = "terrarium-agents", extras = ["providers", "science", "plots"], specifier = "==0.2.1" },
     { name = "terrarium-agents", extras = ["vllm"], marker = "extra == 'vllm'", specifier = "==0.2.1" },
 ]
