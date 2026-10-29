@@ -123,3 +123,6 @@ Please cite us using:
       url={https://arxiv.org/abs/2602.15198}, 
 }
 ```
+
+## License
+This project is released under the [MIT License](LICENSE).
